@@ -1,0 +1,402 @@
+PRESIDIO — GUIDA COMPLETA PER TITOLARE E SVILUPPATORE
+Edizione PC 1.0, 17 settembre 2026
+
+1. COSA HAI RICEVUTO E DOVE SI TROVA IL CODICE
+
+Questa cartella contiene l'esportazione dei sorgenti effettivi del sito:
+https://presidio-controlli.cairletto.chatgpt.site
+
+Il progetto originale è conservato nel repository associato al sito Sites.
+Non è stato recuperato copiando le pagine del browser: è il progetto completo,
+con frontend, API server, schema database, risorse, configurazioni e dipendenze.
+Riferimenti di provenienza verificabili sono in PROVENIENZA.json.
+Il sorgente applicativo coincide con la versione online 3. Il pacchetto aggiunge
+soltanto comandi di gestione PC, configurazione locale e documentazione.
+
+Percorso standard sul Mac: ~/Desktop/blindoservice
+Il carattere ~ indica la cartella personale dell'utente del Mac.
+In Terminale si usa "$HOME/Desktop/blindoservice" per non dover conoscere il nome
+del tuo utente e per gestire correttamente eventuali spazi nel percorso.
+
+La versione locale è una web app: un processo sul Mac serve il programma al
+browser. Non è un'applicazione .app, non è un semplice HTML e non si avvia
+aprendo app/page.tsx. Devi avviare il server con AVVIA.command.
+
+2. TRE COMPONENTI DA TENERE DISTINTE
+
+CODICE: file di questa cartella; determina interfaccia, regole e funzionalità.
+DATI: schede e allegati; in produzione sono in D1/R2, in locale in .wrangler.
+SEGRETI: chiave OpenAI e configurazione riservata; restano fuori dal codice.
+
+Scaricare il codice non scarica database e documenti già online. Il pacchetto
+non comprende un backup di produzione. Non sono state esportate le chiavi
+mascherate del sito: i segreti sono volutamente non recuperabili in chiaro
+attraverso la lettura della configurazione Sites.
+
+Online e locale sono due archivi indipendenti. Modifiche locali non diventano
+online finché non viene pubblicata una versione del sito. L'aggiunta di una
+scheda locale non aggiorna il database online e viceversa.
+
+3. INSTALLAZIONE DAL MAC
+
+A. Estrai Presidio_PC_1.0.zip sulla Scrivania: contiene la cartella blindoservice.
+   Se la cartella esiste già, inserisci i file direttamente al suo interno,
+   senza creare ulteriori cartelle Presidio o blindoservice annidate.
+B. Installa Node.js compatibile con il Mac, minimo 22.13.0; versioni previste
+   per questo pacchetto: 22 o 24. https://nodejs.org
+C. Apri una nuova finestra Terminale e copia:
+
+cd "$HOME/Desktop/blindoservice"
+node --version
+bash INSTALLA.command
+
+L'installazione utilizza la versione pnpm dichiarata in package.json,
+rispetta pnpm-lock.yaml, crea .dev.vars se manca e applica le migrazioni
+soltanto al database locale. Non richiede un account Cloudflare per l'emulazione.
+Se Wrangler chiede di applicare le due migrazioni locali, rispondi y.
+Non cambiare i comandi aggiungendo --remote.
+
+Il primo download dipende dalla connessione. Non chiudere Terminale finché
+non leggi "Installazione completata". In caso di errore conserva il messaggio;
+non usare sudo e non cancellare il lockfile per tentare di risolverlo.
+
+4. AVVIO, ARRESTO E ACCESSO LOCALE
+
+cd "$HOME/Desktop/blindoservice"
+bash AVVIA.command
+
+Apri http://localhost:5173 nel browser. Mantieni aperto Terminale.
+Per arrestare: Ctrl+C nella stessa finestra. Chiudere la scheda browser non
+arresta il server. Non avviare due copie contemporaneamente sulla porta 5173.
+
+La simulazione di accesso locale era già inclusa nel framework del progetto.
+Identità locale: local_seedy / seedy@sites.test / nome visualizzato Seedy.
+La configurazione PC allinea PRESIDIO_OWNER_EMAIL a questa identità di prova.
+L'eventuale nome Seedy non è un account reale e non cambia il titolare online.
+URL di accesso: http://localhost:5173/signin-with-chatgpt?return_to=/
+
+Il server ascolta su loopback, non è un servizio pubblico sulla rete del locale.
+Il login simulato è limitato allo sviluppo e a richieste locali. In produzione
+resta l'accesso ChatGPT con verifica del titolare nel server.
+Non modificare questa protezione per aprire il gestionale da un altro dispositivo.
+Per uso reale su iPhone e per il QR fisico usa il sito HTTPS pubblicato.
+
+I QR contenuti nel progetto e quelli generati in locale devono essere verificati
+prima della stampa: un indirizzo localhost non raggiunge il tuo Mac da un telefono.
+L'HTTP locale e i cookie Secure del portale possono comportarsi diversamente
+secondo il browser; il collaudo completo visitatore va effettuato sul sito HTTPS.
+
+5. CONFIGURAZIONE OPENAI
+
+Lo screenshot mostra la pagina API keys del tuo account: "Create new secret key"
+è il pulsante per crearne una. Puoi assegnare un nome dedicato a Presidio.
+Una chiave per locale e una per produzione permettono una revoca separata.
+Le chiavi visibili solo come sk-... nella lista non sono copiabili integralmente.
+
+Dopo aver ottenuto e conservato la chiave completa, copia in Terminale:
+
+cd "$HOME/Desktop/blindoservice"
+bash CONFIGURA_OPENAI.command
+
+Incolla la chiave e premi Invio: l'input resta nascosto. Il programma la salva
+in .dev.vars, con permessi limitati all'utente. Il controllo verifica il formato,
+non la validità della chiave. Riavvia Presidio per caricare il nuovo valore.
+La chiave non viene inviata al browser. Non metterla in app/, public/, file
+NEXT_PUBLIC_* o VITE_*, screenshot, ZIP sorgente o messaggi di chat.
+
+Configurazione locale attesa:
+PRESIDIO_OWNER_EMAIL="seedy@sites.test"
+OPENAI_API_KEY="chiave personale inserita con il comando"
+
+Non sostituire l'email locale con l'email reale: il login di sviluppo usa
+seedy@sites.test. L'email reale serve solo al segreto del sito pubblicato.
+
+Stato online verificato prima dell'export: OPENAI_API_KEY e
+PRESIDIO_OWNER_EMAIL erano entrambi presenti come segreti nella pubblicazione.
+Non è stata verificata la validità della chiave online con richieste IA reali.
+La frase storica "non configurata al momento della consegna" in PRODUCT.md
+si riferisce a una fase precedente; questa guida aggiorna quello stato.
+
+OpenAI Developers risultava installato ma rifiutava l'accesso ai progetti API
+dalla sessione di lavoro; la procedura sicura di generazione del plugin non
+era disponibile. Non è stata generata o sostituita una chiave da questa chat.
+La possibilità di crearne una nella tua pagina web è distinta da quel blocco.
+
+6. COLLAUDO IA CON DATI FITTIZI
+
+Prima verifica la funzione locale senza documenti reali:
+1. Avvia Presidio, crea un fascicolo con ente e oggetto esplicitamente DI PROVA.
+2. Dal controllo registra 15–30 secondi di voce, ad esempio:
+   "Questa è una prova di Presidio. Sono stati richiesti due documenti.
+   Il primo è disponibile; il secondo deve essere recuperato domani.
+   Non si tratta di un controllo reale."
+3. Arresta e verifica che la registrazione sia stata archiviata e sia ascoltabile.
+4. Premi "Invia e trascrivi"; attendi la trascrizione, controlla il testo.
+5. Premi "Prepara bozza per il legale" e verifica che compaiano sintesi,
+   passaggi citati e azioni. Le citazioni devono corrispondere alla trascrizione.
+6. Ricarica la pagina e verifica che gli esiti rimangano nel fascicolo.
+
+La chiamata usa il tuo account API e può generare consumo API. Per la prova
+non usare nomi di persone, controlli o documenti reali. L'app non ha ancora
+un comando di cancellazione del fascicolo: i test restano nell'archivio locale.
+
+"Servizio collegato" significa soltanto che OPENAI_API_KEY non è vuota.
+Un errore IA può dipendere da chiave, permessi, quota, modello, rete o formato.
+I messaggi attuali del sito sono generici e non distinguono tutte queste cause.
+Il programma conserva l'originale audio anche quando la trascrizione fallisce.
+Non dichiarare un collaudo riuscito se compare solo il badge di collegamento.
+
+7. FUNZIONALITÀ PRESENTI
+
+- Profilo azienda, sede, referente e informativa portale.
+- Archivio documentale con metadati, categorie, allegati, data e scadenza.
+- Catalogo di 200 voci in 18 categorie, con valutazione di applicabilità.
+- Confronti testuali partita IVA/sede e avvisi sulle date inserite.
+- Attività assegnate, scadenze, note e stato completato.
+- Fascicoli di controllo, annotazioni, cronologia, registrazioni audio.
+- QR esterno, identificazione dichiarata, autorizzazione selettiva documenti,
+  ricerca e consultazione, richieste assistenza e revoca.
+- Postazione di controllo del titolare con aggiornamento ogni 4 secondi.
+- Trascrizione su richiesta e generazione di una bozza di riesame.
+- Export dei metadati JSON e resoconti TXT; download degli originali separato.
+
+Non sono implementati: sincronizzazione PC/cloud, importazione completa di un
+backup di produzione, OCR automatico dei documenti per il riesame, ascolto IA
+continuo, risposta legale in diretta, ricerca normativa automatica aggiornata,
+gestione multi-impresa, conservazione certificata e ripristino online autonomo.
+Le regole giuridiche vanno validate nel progetto con il professionista: questa
+guida documenta il software e non aggiorna né certifica il suo impianto legale.
+
+8. MAPPA DEL CODICE
+
+app/page.tsx                    Ingresso area del titolare e autorizzazione.
+app/presidio.tsx                Interfaccia principale e flussi di lavoro.
+app/globals.css                 Aspetto, colori, dimensioni e responsive.
+app/layout.tsx                  Layout e metadati della pagina.
+app/catalogue-panel.tsx         Interfaccia del catalogo.
+app/control-room.tsx            Controlli, visitatori, eventi e autorizzazioni.
+app/inspector-portal.tsx         Interfaccia del visitatore esterno.
+app/accesso/page.tsx            Pagina pubblica di accesso da QR.
+app/ai-panel.tsx                Pulsanti e visualizzazione trascrizione/riesame.
+app/chatgpt-auth.ts             Identità inoltrata dalla piattaforma, login.
+lib/operator.ts                Controllo server dell'email del titolare.
+lib/portal-server.ts            Origine, sessioni, token, limiti e risposte API.
+lib/product.ts                  Profili iniziali, categorie e regole locali.
+lib/catalogue.ts                Contenuto del catalogo documentale.
+db/schema.ts                    Schema Drizzle.
+drizzle/                       Migrazioni SQL versionate e metadati schema.
+components/ui/                 Componenti interfaccia.
+public/                        Icone, favicon, SVG e altre risorse pubbliche.
+tests/access-control.mjs        Test esistenti sui route handler e SQLite.
+.openai/hosting.json            Identità sito e binding DB/BUCKET.
+vite.config.ts                 Build e binding locali del runtime.
+build/sites-vite-plugin.ts      Plugin incluso: mock locale e packaging.
+package.json / pnpm-lock.yaml   Dipendenze e versioni bloccate.
+scripts/pc.mjs                 Gestione locale, backup e aggiornamento.
+wrangler.local.json            Configurazione SOLO per database locale.
+scripts/release-manifest.mjs    Rigenerazione inventario per release PC.
+
+API DEL SERVER
+GET/POST /api/state             Profilo e record dell'archivio del titolare.
+GET/POST /api/files             Download e upload degli allegati del titolare.
+GET/POST /api/control-room      Portale, visite, permessi, report, aiReady.
+GET/POST /api/portal            Sessione visitatore, identità e ricerca.
+GET /api/portal/file            Originale autorizzato al visitatore.
+POST /api/assistant             action transcribe oppure review.
+
+Le scritture verificano l'origine; i dati privati verificano il proprietario.
+Non chiamare le API amministrative da una pagina anonima e non spostare la
+chiave OpenAI nel client per aggirare queste verifiche.
+
+9. DATABASE E ALLEGATI
+
+Produzione: Cloudflare D1, binding DB; allegati Cloudflare R2, binding BUCKET.
+Locale: emulazione con persistenza in .wrangler/state. Contiene sia database
+sia oggetti; non cancellare questa cartella per "ripulire" il progetto.
+
+Tabelle:
+profiles       Profilo azienda per owner, JSON dati e aggiornamento.
+records        Schede per owner e kind, JSON dati, date creazione/modifica.
+files          Nome, MIME, object_key R2, SHA-256 e proprietario.
+portals        Portale dell'owner, attivazione e data creazione.
+visits         Sessioni, token hash, stato, scadenza, documento attivo.
+grants         Documenti concessi a ogni visita, file e versione fissata.
+portal_events  Eventi del portale per visita/owner.
+request_limits Contatori con scadenza per limitare le richieste.
+
+Tipi principali records: document, inspection, event, task, requirement,
+revision, transcript e review. Il codice conserva revisioni delle schede;
+le annotazioni di evento sono append-only tramite l'API esistente.
+
+Due migrazioni fornite: 0000_fearless_mystique.sql, 0001_workable_unus.sql.
+Wrangler tiene traccia delle migrazioni locali già applicate. Per applicare
+nuove migrazioni ricevute con un aggiornamento, con server fermo:
+
+cd "$HOME/Desktop/blindoservice"
+node scripts/pc.mjs db
+
+Non eseguire a mano due volte lo stesso CREATE TABLE. Non sostituire il
+database_id fittizio locale con un ID reale di produzione.
+
+10. INTEGRAZIONE OPENAI — SPECIFICA EFFETTIVA
+
+Implementazione: app/api/assistant/route.ts.
+Trascrizione: POST https://api.openai.com/v1/audio/transcriptions
+Modello nel codice: gpt-4o-transcribe-diarize
+Parametri: response_format diarized_json, chunking_strategy auto, language it.
+Input: originale audio già salvato in BUCKET e collegato a un evento.
+Output archiviato: testo, segmenti, tempi, speaker, modello, riferimenti al
+file e all'evento, digest, verified=false. Una seconda trascrizione dello
+stesso evento è rifiutata se ne esiste già una.
+
+Riesame: POST https://api.openai.com/v1/responses
+Modello nel codice: gpt-4.1; store=false; JSON object; max_output_tokens 3500.
+Input: fascicolo, trascrizioni e cronologia del portale associata.
+Output: summary, passages (transcriptId, quote, reason, alternative,
+verification), actions. Si eliminano le citazioni non trovate esattamente
+nel testo della trascrizione citata. verified resta false.
+
+Limiti rilevati nel codice:
+- Allegati fino a 20 MB; documenti PDF/JPG/PNG/WebP, audio WebM/MP4/MP3/WAV/OGG.
+- Massimo 12 richieste IA per ora per owner, condivise fra le due azioni.
+- Fascicolo serializzato per riesame fino a 150.000 caratteri.
+- Richiesta JSON dell'assistente fino a 32.000 caratteri/limite dichiarato.
+- Testo trascrizione salvato fino a 120.000 caratteri.
+- Passaggi del riesame fino a 40, ciascuna citazione fino a 3.000 caratteri.
+- Le voci sono distinte ma non identificate come persone tramite biometria.
+
+Modelli e API qui descritti sono quelli del sorgente esportato. Per migrare
+modelli o cambiare formati verificare prima la documentazione ufficiale:
+https://developers.openai.com/api/docs/guides/speech-to-text
+https://developers.openai.com/api/docs/guides/text
+
+11. BACKUP LOCALE E RIPRISTINO
+
+Ferma il server con Ctrl+C. Poi:
+
+cd "$HOME/Desktop/blindoservice"
+bash BACKUP.command
+
+Viene creato un archivio Presidio-backup-DATA.tar.gz nella cartella superiore,
+quindi normalmente sulla Scrivania. Include codice e .wrangler/state; esclude
+node_modules, build, Git, cache, .env* e .dev.vars*. La chiave va conservata
+separatamente nel gestore di password. Il backup contiene dati riservati:
+custodiscilo come custodiresti i documenti dell'impresa.
+
+Il controllo server fermo riguarda la porta standard 5173 su IPv4 loopback.
+Se hai avviato processi personalizzati su altre porte devi arrestarli tu.
+Non creare backup mentre registrazioni o scritture sono in corso.
+
+Ripristino prudente: ferma il programma, rinomina la cartella corrente invece
+di eliminarla, crea una nuova blindoservice, estrai il backup in quella cartella,
+installa le dipendenze e reinserisci la chiave. Il comando di estrazione,
+dopo aver sostituito NOME_BACKUP con il nome effettivo, è:
+
+mkdir -p "$HOME/Desktop/blindoservice"
+tar -xzf "$HOME/Desktop/NOME_BACKUP.tar.gz" -C "$HOME/Desktop/blindoservice"
+cd "$HOME/Desktop/blindoservice"
+bash INSTALLA.command
+bash CONFIGURA_OPENAI.command
+bash AVVIA.command
+
+Non estrarre su un database che sta lavorando. Per un rollback completo
+servono sorgenti e stato locale della stessa fotografia.
+
+12. AGGIORNAMENTI DA QUESTA CHAT O DA CODEX
+
+Flusso consigliato: invii la release PC o fai aprire questa cartella a Codex,
+descrivi la modifica e ricevi un nuovo pacchetto completo con manifesto.
+Il lavoro va eseguito sul progetto esistente, preservando funzioni e dati.
+Fornisci LEGGIMI_PRIMA, AGENTS.md e il file di provenienza per ripartire.
+
+Per installare un nuovo pacchetto, estrailo in Download (fuori dalla cartella
+in uso), ferma Presidio e copia, adeguando solo il nome dell'estrazione:
+
+cd "$HOME/Desktop/blindoservice"
+node scripts/pc.mjs update "$HOME/Downloads/Presidio-aggiornamento/blindoservice"
+bash AVVIA.command
+
+L'aggiornamento controlla il manifesto del pacchetto e l'identità del sito;
+rifiuta conflitti con file locali modificati; crea prima un backup; aggiorna
+i file gestiti; elimina quelli tolti dal nuovo manifesto; conserva segreti,
+archivio e file personali non gestiti; reinstalla dipendenze e migrazioni.
+In caso di errore di installazione/migrazione si ferma: il backup resta
+disponibile, non avviene un rollback automatico del database.
+
+Se hai modificato il codice a mano, il rifiuto è intenzionale: invia le
+modifiche all'assistente per integrarle. Non rigenerare il manifesto solo
+per aggirare il controllo e non sovrascrivere la cartella trascinandone un'altra.
+
+Per usare Git sul tuo PC, facoltativamente, dopo avere installato Git:
+cd "$HOME/Desktop/blindoservice"
+git init
+git add .
+git commit -m "Base Presidio PC 1.0"
+
+Il .gitignore esclude segreti e archivio locale. Il pacchetto non contiene
+credenziali per il repository Sites. Non aggiungere segreti con git add -f.
+Se pubblichi su un tuo repository mantienilo privato per il codice gestionale.
+
+Per una nuova release lo sviluppatore aggiorna documentazione e collaudo,
+poi esegue node scripts/release-manifest.mjs. Questo comando fotografa i file:
+non è una firma digitale, non controlla la qualità e non dimostra la provenienza.
+
+13. PUBBLICAZIONE DELLO STESSO SITO
+
+Il toolkit PC NON contiene un tasto che pubblica con credenziali nascoste.
+La destinazione resta il sito indicato in .openai/hosting.json. Per pubblicare
+da questa chat/Codex serve Sites con accesso al progetto esistente: si verifica
+il progetto, si testa e costruisce la versione, si salva il sorgente e si
+pubblica su quella stessa identità. Le migrazioni di produzione sono gestite
+nel flusso Sites, non con i comandi --local di questa cartella.
+
+Richiesta da usare dopo una modifica approvata:
+"Pubblica questa versione sul sito Presidio esistente indicato in
+.openai/hosting.json. Conserva dati, allegati, segreti e accessi. Non creare
+un nuovo sito. Verifica i flussi modificati prima di pubblicare."
+
+Una richiesta di solo ZIP, backup o sviluppo PC non pubblica il sito.
+Un deploy Cloudflare autonomo richiede un progetto hosting, risorse DB/R2,
+segreti e autenticazione appropriati: non basta wrangler deploy per replicare
+l'identità ChatGPT inoltrata dalla piattaforma. Questa migrazione non è inclusa.
+
+14. DATI DI PRODUZIONE: COME OTTENERE UNA COPIA
+
+Dalla sezione Azienda puoi esportare schede e cronologie JSON. Gli originali
+si scaricano dalle rispettive schede. Il JSON non incorpora tutti i byte degli
+allegati e non è un dump completo di tutte le tabelle del portale.
+Non c'è al momento un importatore integrale JSON→DB locale.
+
+Per una migrazione completa occorre un intervento dedicato: inventario delle
+tabelle, esportazione consistente, copia originali R2, verifica SHA-256,
+rimappatura owner e collegamenti, importazione transazionale, test e confronto
+conteggi. Finché non è effettuato, non eliminare i dati online pensando che
+questo ZIP o l'esportazione JSON li abbia già messi tutti al sicuro.
+
+15. PROBLEMI FREQUENTI
+
+"node: command not found": installa Node, poi riapri Terminale.
+"No such file or directory": controlla che la cartella blindoservice sia davvero sulla Scrivania.
+"Permission denied" sul .command: esegui bash AVVIA.command dal Terminale.
+Porta occupata: ferma l'altra istanza, non avviare contemporaneamente più server.
+"Area del responsabile / account non abilitato": in locale controlla che
+PRESIDIO_OWNER_EMAIL in .dev.vars sia seedy@sites.test; poi esci e rientra.
+"Archivio non disponibile" o tabelle mancanti: ferma il server, esegui
+node scripts/pc.mjs db e riavvia. Non cancellare .wrangler come primo rimedio.
+Nessun dato del sito nel PC: è normale, non è attiva una sincronizzazione.
+IA non collegata: configura la chiave e riavvia; badge pronto ma errore IA:
+controlla account API, quota e permessi, quindi prova con un audio breve.
+Installazione incompatibile col sistema: serve una versione macOS supportata
+dalle dipendenze native Node/workerd. Non è stato provato questo specifico Mac.
+Microfono non disponibile: autorizza il browser; per mobile usa HTTPS online.
+
+16. QUALI FILE CONDIVIDERE PER ASSISTENZA
+
+Condividi sorgenti e manifesti, versione Node e messaggio d'errore privo di
+credenziali. Non condividere .dev.vars, .env*, .git con credenziali locali,
+.wrangler o backup contenenti documenti. Lo ZIP originale è già privo di questi.
+Per un problema relativo ai dati, concordiamo prima quale piccolo campione
+fittizio o anonimizzato riproduce l'errore.
+
+Conserva questa prima release come punto di ripartenza. Il prossimo passo
+operativo è avviare la copia sul Mac e collaudare OpenAI con la tua chiave.

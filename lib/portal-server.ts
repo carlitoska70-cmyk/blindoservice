@@ -1,0 +1,14 @@
+import {env} from 'cloudflare:workers';
+import {getOperator} from '@/lib/operator';
+export const response=(data:unknown,status=200,extra:Record<string,string>={})=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer',...extra}});
+export const digest=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(x=>x.toString(16).padStart(2,'0')).join('');
+export const token=()=>crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
+export function db(){if(!env.DB)throw new Error('Archivio non disponibile');return env.DB}
+export async function owner(){const u=await getOperator();if(!u)throw new Error('Accesso richiesto');return u.userId}
+export function origin(req:Request){if(req.headers.get('origin')!==new URL(req.url).origin)throw new Error('Origine non valida')}
+export async function body(req:Request){if(Number(req.headers.get('content-length')||0)>32000)throw new Error('Richiesta troppo grande');const text=await req.text();if(text.length>32000)throw new Error('Richiesta troppo grande');return JSON.parse(text)}
+export async function event(v:any,kind:string,data:unknown){await db().prepare('INSERT INTO portal_events(id,owner,visit_id,kind,data,created) VALUES(?,?,?,?,?,?)').bind(crypto.randomUUID(),v.owner,v.id,kind,JSON.stringify(data),new Date().toISOString()).run()}
+export async function visitor(req:Request){const raw=(req.headers.get('cookie')||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('presidio_visit='))?.slice(15);if(!raw)return null;const v=await db().prepare('SELECT v.* FROM visits v JOIN portals p ON v.portal_id=p.id WHERE v.token_hash=? AND p.enabled=1 AND v.expires>? AND v.status<>?').bind(await digest(raw),new Date().toISOString(),'chiusa').first<any>();return v}
+export async function rate(key:string,max=60,seconds=60){const now=Math.floor(Date.now()/1000);const id=await digest(key+':'+Math.floor(now/seconds));const r=await db().prepare('INSERT INTO request_limits(id,count,expires) VALUES(?,1,?) ON CONFLICT(id) DO UPDATE SET count=count+1 RETURNING count').bind(id,now+seconds).first<any>();if(r.count>max)throw new Error('Troppe richieste. Attendi e riprova.');if(Math.random()<.02)await db().prepare('DELETE FROM request_limits WHERE expires<?').bind(now-86400).run()}
+export function safeVisit(v:any){return v?{id:v.id,status:v.status,data:JSON.parse(v.data),created:v.created,expires:v.expires,inspectionId:v.inspection_id}:null}
+export function failure(e:unknown){const msg=e instanceof Error?e.message:'Operazione non riuscita';const status=msg==='Accesso richiesto'?401:msg==='Origine non valida'?403:msg.startsWith('Troppe')?429:400;return response({error:msg.includes('D1')?'Archivio temporaneamente non disponibile':msg},status)}

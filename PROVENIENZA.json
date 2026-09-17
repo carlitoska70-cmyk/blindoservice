@@ -1,0 +1,25 @@
+{
+  "product": "Presidio",
+  "pcRelease": "1.0",
+  "exportDate": "2026-09-17",
+  "siteUrl": "https://presidio-controlli.cairletto.chatgpt.site",
+  "siteProjectId": "appgprj_6aa9b2265e948191bb0ae2295d36b180",
+  "siteVersion": 3,
+  "sourceCommit": "82fe05a05f70fc498d9a291a2f691c471a5e9f76",
+  "applicationSourceChanged": false,
+  "additions": [
+    "Toolkit PC",
+    "Guide operative",
+    "Manifesto SHA-256",
+    "Configurazione migrazioni locali"
+  ],
+  "excluded": [
+    "Dati di produzione",
+    "Allegati di produzione",
+    "Segreti",
+    "Credenziali Git",
+    "node_modules",
+    "Cronologia Git"
+  ],
+  "installationFolder": "~/Desktop/blindoservice"
+}

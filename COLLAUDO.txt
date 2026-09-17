@@ -1,0 +1,40 @@
+PRESIDIO PC 1.0 — VERIFICHE DEL PACCHETTO
+17 settembre 2026, ambiente di verifica Linux; destinazione istruzioni: Mac.
+
+RISULTATI EFFETTIVI
+- 97 file applicativi di app, lib, db, drizzle, components, public, hooks e
+  vendor identici alla copia del repository del sito online.
+- Dipendenze installate con la versione pnpm e il lockfile del progetto.
+- Migrazioni iniziali applicate al database locale.
+- 16 controlli esistenti su accesso e ciclo delle visite: superati.
+- Catalogo verificato dal test esistente: 200 voci in 18 categorie.
+- Avvio reale del server locale, richieste HTTP effettuate in loopback.
+- API privata anonima: HTTP 401; login di sviluppo: accesso all'archivio.
+- Creazione di una scheda fittizia via API: riuscita.
+- Upload e download di un piccolo allegato fittizio: byte identici.
+- Arresto/riavvio: scheda e allegato persistono e sono nuovamente leggibili.
+- IA senza chiave: risposta controllata HTTP 503; nessuna chiamata OpenAI.
+- Backup locale: archivio creato, sorgenti e database corrispondenti ai file
+  di origine, segreti e node_modules esclusi.
+- Aggiornamento: un cambiamento locale viene rifiutato prima di sovrascrivere.
+- Sintassi dei sei script .command e dei due script Node aggiunti: verificata.
+- Manifesto SHA-256 e archivio ZIP: verificati prima della consegna.
+
+LIMITI DELLA VERIFICA
+- Non sono state eseguite chiamate OpenAI reali con una chiave valida.
+- Non è stata verificata la specifica installazione macOS dell'utente.
+- Non è stato effettuato un collaudo visuale completo con Safari/iPhone.
+- Non è stato provato un aggiornamento fra due release con una nuova migrazione;
+  sono verificati backup e arresto preventivo in caso di file locali modificati.
+- Non è stato eseguito un ripristino completo da backup su un secondo Mac;
+  sono stati controllati inclusione e contenuto dei file di backup.
+- Nessun dato di prova o segreto usato nel collaudo locale è incluso nello ZIP.
+- Nessun nuovo deploy o modifica del sito online per produrre questo pacchetto.
+
+PROVA SUCCESSIVA
+Sul Mac: installazione, avvio, configurazione della chiave personale e prova
+trascrizione/riesame descritta in GUIDA_COMPLETA_PRESIDIO.txt.
+
+AGGIORNAMENTO PERCORSO
+Percorso richiesto: ~/Desktop/blindoservice. Guide e comandi aggiornati;
+cartella radice dello ZIP: blindoservice. Rigenerato e verificato il manifesto.

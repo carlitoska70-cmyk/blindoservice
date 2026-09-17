@@ -1,0 +1,81 @@
+PRESIDIO — PACCHETTO SORGENTE E GESTIONE DA MAC
+Edizione PC 1.0 — 17 settembre 2026
+
+QUESTO È IL CODICE DEL SITO ESISTENTE
+Il codice applicativo proviene dalla versione 3 di:
+https://presidio-controlli.cairletto.chatgpt.site
+Revisione sorgente: 82fe05a05f70fc498d9a291a2f691c471a5e9f76
+Sono stati aggiunti strumenti PC e documentazione. L'interfaccia, le funzioni,
+le regole di accesso online e l'integrazione IA non sono state riscritte.
+
+DOVE METTERE LA CARTELLA
+Estrai lo ZIP sulla Scrivania: la cartella si chiama blindoservice.
+Se hai già creato blindoservice, inserisci direttamente al suo interno i file
+del pacchetto: INSTALLA.command deve essere in Desktop/blindoservice,
+non in Desktop/blindoservice/Presidio o blindoservice/blindoservice.
+Il percorso scelto per tutte le istruzioni è: ~/Desktop/blindoservice
+Non è un'app da aprire con un doppio clic su index.html: comprende un server.
+
+PREREQUISITO
+Node.js >=22.13.0; usa Node.js 22 o 24 compatibile con il tuo macOS.
+Download: https://nodejs.org
+Chiudi e riapri Terminale dopo l'installazione. Controlla con: node --version
+La prima installazione richiede Internet per scaricare le dipendenze bloccate
+nel file pnpm-lock.yaml. Non include node_modules specifici di un altro PC.
+
+INSTALLAZIONE — COPIA NEL TERMINALE
+cd "$HOME/Desktop/blindoservice"
+bash INSTALLA.command
+
+Se viene chiesta conferma per le migrazioni locali, rispondi y e premi Invio.
+Il comando prepara login locale e database; non pubblica e non cambia il sito.
+
+AVVIO — COPIA NEL TERMINALE
+cd "$HOME/Desktop/blindoservice"
+bash AVVIA.command
+
+Apri nel browser: http://localhost:5173
+Se vieni mandato al login, usa l'accesso locale incluso nel progetto.
+Indirizzo diretto: http://localhost:5173/signin-with-chatgpt?return_to=/
+Per fermare il programma: Ctrl+C nella finestra Terminale che lo esegue.
+
+OPENAI
+Puoi creare la chiave dalla pagina API keys mostrata nello screenshot, con
+"Create new secret key". È utile un nome riconoscibile, ad esempio Presidio-PC.
+La chiave completa non è presente in questo ZIP e non si recupera dal valore
+mascherato nella lista. Conservala in un gestore di password.
+Per inserirla sul tuo Mac senza mostrarla mentre la incolli:
+
+cd "$HOME/Desktop/blindoservice"
+bash CONFIGURA_OPENAI.command
+
+Riavvia Presidio dopo il salvataggio. Non incollare la chiave in chat.
+La configurazione locale non aggiorna il segreto del sito online.
+Le chiamate API richiedono disponibilità del servizio, permessi e quota API.
+Il solo messaggio "Servizio collegato" indica che una chiave è configurata,
+non che una chiamata reale sia riuscita. Vedi il collaudo IA nella guida.
+
+I DATI ONLINE SONO SEPARATI
+Lo ZIP contiene sorgenti, schema database, catalogo e risorse del sito.
+Non contiene documenti, audio, schede o segreti già salvati in produzione.
+L'archivio locale parte vuoto; il profilo iniziale e il catalogo sono nel codice.
+Non esiste sincronizzazione automatica né importazione completa online→PC.
+Il sito online continua a funzionare indipendentemente dal programma locale.
+
+PROSSIMI PASSI
+1. Installa e avvia dal Terminale.
+2. Prova una scheda e un piccolo allegato fittizio.
+3. Configura la chiave e prova un audio fittizio, poi il riesame.
+4. Usa BACKUP.command prima di lavorare con nuovi aggiornamenti.
+
+FILE UTILI
+GUIDA_COMPLETA_PRESIDIO.txt: gestione, specifiche, percorsi, API, dati,
+backup, aggiornamenti, pubblicazione e risoluzione problemi.
+AGENTS.md: istruzioni per l'assistente che modificherà questo progetto.
+PRODUCT.md: specifica funzionale originale, conservata come documento storico.
+COLLAUDO.txt: verifiche effettivamente eseguite e limiti del collaudo.
+SOURCE_MANIFEST.json: elenco e impronte SHA-256 dei file della distribuzione.
+
+Per gli aggiornamenti futuri invia il progetto SENZA .dev.vars, .env*,
+node_modules e .wrangler. Questi ultimi possono contenere segreti o dati privati.
+Non inviare i backup completi come se fossero semplici sorgenti.
