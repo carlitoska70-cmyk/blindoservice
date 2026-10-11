@@ -1,13 +1,194 @@
 'use client';
-import {useState} from 'react';
-import {catalogue,catalogueCategories,CatalogItem} from '@/lib/catalogue';
-import {Entry} from '@/lib/product';
-import {Search,Plus,FileText,ExternalLink} from 'lucide-react';
-export default function CataloguePanel({records,onAdd,onSave}:{records:Entry[];onAdd:(c:CatalogItem)=>void;onSave:(c:CatalogItem,status:string,note:string,old?:Entry)=>Promise<any>}){
- const [q,setQ]=useState(''),[cat,setCat]=useState('Tutte'),[priority,setPriority]=useState('Tutte'),[status,setStatus]=useState('Tutti');
- const [editing,setEditing]=useState(''),[note,setNote]=useState(''),[decision,setDecision]=useState('Da valutare'),[busy,setBusy]=useState(false);
- const requirements=records.filter(r=>r.kind==='requirement');const linked=(id:string)=>records.filter(r=>r.kind==='document'&&r.data.catalogId===id);
- const applicable=requirements.filter(r=>r.data.status==='Applicabile');const missing=applicable.filter(r=>!linked(r.data.catalogId).some(d=>d.data.fileId));
- const filtered=catalogue.filter(c=>(cat==='Tutte'||c.category===cat)&&(priority==='Tutte'||c.priority===priority)&&[c.title,c.category,c.condition,c.description].join(' ').toLowerCase().includes(q.toLowerCase())&&(status==='Tutti'||(requirements.find(r=>r.data.catalogId===c.id)?.data.status||'Da valutare')===status));
- return <><div className="sectiontitle"><div><p className="eyebrow">BAR, RISTORAZIONE E IMMOBILE</p><h1>Il catalogo del fascicolo</h1><p>{catalogue.length} voci · {catalogueCategories.length} categorie · applicabilità da motivare</p></div></div><div className="notice"><div><strong>Priorità organizzativa e obbligo di legge sono due cose diverse.</strong><p>Ogni voce indica quando approfondire. Il catalogo è una base ampia da adattare a sede, impianti, attività e periodo: non certifica che tutti i documenti siano necessari o che l’elenco esaurisca ogni obbligo. I riferimenti aprono fonti di settore da verificare sul caso concreto.</p></div></div><div className="metrics"><div><strong>{catalogue.length}</strong><span>voci da considerare</span></div><div><strong>{applicable.length}</strong><span>dichiarate applicabili</span></div><div><strong>{missing.length}</strong><span>applicabili senza originale</span></div><div><strong>{requirements.filter(r=>r.data.status==='Non applicabile').length}</strong><span>escluse con motivazione</span></div></div><div className="toolbar cataloguefilters"><div className="searchbox"><Search size={18}/><input aria-label="Cerca nel catalogo" placeholder="Es. macchina caffè, agibilità, allergeni…" value={q} onChange={e=>setQ(e.target.value)}/></div><select aria-label="Categoria catalogo" value={cat} onChange={e=>setCat(e.target.value)}>{['Tutte',...catalogueCategories].map(c=><option key={c}>{c}</option>)}</select><select aria-label="Priorità" value={priority} onChange={e=>setPriority(e.target.value)}>{['Tutte','Prioritario','Secondario','Opzionale'].map(c=><option key={c}>{c}</option>)}</select><select aria-label="Applicabilità" value={status} onChange={e=>setStatus(e.target.value)}>{['Tutti','Da valutare','Applicabile','Non applicabile'].map(c=><option key={c}>{c}</option>)}</select></div><p className="muted">{filtered.length} voci visualizzate</p><div className="cataloguelist">{filtered.map(c=>{const r=requirements.find(r=>r.data.catalogId===c.id),docs=linked(c.id);return <article className="panel catalogueitem" key={c.id}><div className="sectionhead"><p className="eyebrow">{c.category}</p><span className={'badge '+(c.priority==='Prioritario'?'amber':'gray')}>{c.priority}</span></div><h3>{c.title}</h3><p><strong>Quando valutarlo:</strong> {c.condition}</p><p className="muted">{c.description}</p><div className="cataloguefoot"><span className={'badge '+(r?.data.status==='Applicabile'?'blue':'gray')}>{r?.data.status||'Da valutare'}</span><span><FileText size={15}/>{docs.filter(d=>d.data.fileId).length} originali collegati</span><a href={c.source} target="_blank" rel="noreferrer">Riferimento di area <ExternalLink size={14}/></a></div>{r?.data.notes&&<p className="smallnote">Valutazione: {r.data.notes}</p>}{editing===c.id?<div className="catalogueedit"><label className="field"><span>Applicabilità</span><select value={decision} onChange={e=>setDecision(e.target.value)}>{['Da valutare','Applicabile','Non applicabile'].map(x=><option key={x}>{x}</option>)}</select></label><label className="field"><span>Motivazione, referente e data</span><textarea value={note} maxLength={4000} onChange={e=>setNote(e.target.value)} placeholder="Indica fatti, fonte e chi ha verificato."/></label><button className="button primary compact" disabled={busy||(decision==='Non applicabile'&&!note.trim())} onClick={async()=>{setBusy(true);try{const result=await onSave(c,decision,note,r);if(result)setEditing('')}finally{setBusy(false)}}}>Salva valutazione</button><button className="textbutton" onClick={()=>setEditing('')}>Annulla</button></div>:<div className="cardactions"><button className="textbutton" onClick={()=>{setEditing(c.id);setDecision(r?.data.status||'Da valutare');setNote(r?.data.notes||'')}}>Valuta applicabilità</button><button className="button secondary compact" onClick={()=>onAdd(c)}><Plus size={15}/>Aggiungi documento</button></div>}</article>})}</div>{!filtered.length&&<p className="panel">Nessuna voce corrispondente ai filtri.</p>}</>
+import { useState } from 'react';
+import { catalogue, catalogueCategories, CatalogItem } from '@/lib/catalogue';
+import { Entry } from '@/lib/product';
+import { Search, Plus, FileText, ExternalLink } from 'lucide-react';
+export default function CataloguePanel({
+  records,
+  onAdd,
+  onSave,
+}: {
+  records: Entry[];
+  onAdd: (c: CatalogItem) => void;
+  onSave: (c: CatalogItem, status: string, note: string, old?: Entry) => Promise<any>;
+}) {
+  const [q, setQ] = useState(''),
+    [cat, setCat] = useState('Tutte'),
+    [priority, setPriority] = useState('Tutte'),
+    [status, setStatus] = useState('Tutti');
+  const [editing, setEditing] = useState(''),
+    [note, setNote] = useState(''),
+    [decision, setDecision] = useState('Da valutare'),
+    [busy, setBusy] = useState(false);
+  const requirements = records.filter(r => r.kind === 'requirement');
+  const linked = (id: string) => records.filter(r => r.kind === 'document' && r.data.catalogId === id);
+  const applicable = requirements.filter(r => r.data.status === 'Applicabile');
+  const missing = applicable.filter(r => !linked(r.data.catalogId).some(d => d.data.fileId));
+  const filtered = catalogue.filter(
+    c =>
+      (cat === 'Tutte' || c.category === cat) &&
+      (priority === 'Tutte' || c.priority === priority) &&
+      [c.title, c.category, c.condition, c.description].join(' ').toLowerCase().includes(q.toLowerCase()) &&
+      (status === 'Tutti' ||
+        (requirements.find(r => r.data.catalogId === c.id)?.data.status || 'Da valutare') === status),
+  );
+  return (
+    <>
+      <div className="sectiontitle">
+        <div>
+          <p className="eyebrow">BAR, RISTORAZIONE E IMMOBILE</p>
+          <h1>Il catalogo del fascicolo</h1>
+          <p>
+            {catalogue.length} voci · {catalogueCategories.length} categorie · applicabilità da motivare
+          </p>
+        </div>
+      </div>
+      <div className="notice">
+        <div>
+          <strong>Priorità organizzativa e obbligo di legge sono due cose diverse.</strong>
+          <p>
+            Ogni voce indica quando approfondire. Il catalogo è una base ampia da adattare a sede, impianti,
+            attività e periodo: non certifica che tutti i documenti siano necessari o che l’elenco esaurisca
+            ogni obbligo. I riferimenti aprono fonti di settore da verificare sul caso concreto.
+          </p>
+        </div>
+      </div>
+      <div className="metrics">
+        <div>
+          <strong>{catalogue.length}</strong>
+          <span>voci da considerare</span>
+        </div>
+        <div>
+          <strong>{applicable.length}</strong>
+          <span>dichiarate applicabili</span>
+        </div>
+        <div>
+          <strong>{missing.length}</strong>
+          <span>applicabili senza originale</span>
+        </div>
+        <div>
+          <strong>{requirements.filter(r => r.data.status === 'Non applicabile').length}</strong>
+          <span>escluse con motivazione</span>
+        </div>
+      </div>
+      <div className="toolbar cataloguefilters">
+        <div className="searchbox">
+          <Search size={18} />
+          <input
+            aria-label="Cerca nel catalogo"
+            placeholder="Es. macchina caffè, agibilità, allergeni…"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
+        </div>
+        <select aria-label="Categoria catalogo" value={cat} onChange={e => setCat(e.target.value)}>
+          {['Tutte', ...catalogueCategories].map(c => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+        <select aria-label="Priorità" value={priority} onChange={e => setPriority(e.target.value)}>
+          {['Tutte', 'Prioritario', 'Secondario', 'Opzionale'].map(c => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+        <select aria-label="Applicabilità" value={status} onChange={e => setStatus(e.target.value)}>
+          {['Tutti', 'Da valutare', 'Applicabile', 'Non applicabile'].map(c => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+      <p className="muted">{filtered.length} voci visualizzate</p>
+      <div className="cataloguelist">
+        {filtered.map(c => {
+          const r = requirements.find(r => r.data.catalogId === c.id),
+            docs = linked(c.id);
+          return (
+            <article className="panel catalogueitem" key={c.id}>
+              <div className="sectionhead">
+                <p className="eyebrow">{c.category}</p>
+                <span className={'badge ' + (c.priority === 'Prioritario' ? 'amber' : 'gray')}>
+                  {c.priority}
+                </span>
+              </div>
+              <h3>{c.title}</h3>
+              <p>
+                <strong>Quando valutarlo:</strong> {c.condition}
+              </p>
+              <p className="muted">{c.description}</p>
+              <div className="cataloguefoot">
+                <span className={'badge ' + (r?.data.status === 'Applicabile' ? 'blue' : 'gray')}>
+                  {r?.data.status || 'Da valutare'}
+                </span>
+                <span>
+                  <FileText size={15} />
+                  {docs.filter(d => d.data.fileId).length} originali collegati
+                </span>
+                <a href={c.source} target="_blank" rel="noreferrer">
+                  Riferimento di area <ExternalLink size={14} />
+                </a>
+              </div>
+              {r?.data.notes && <p className="smallnote">Valutazione: {r.data.notes}</p>}
+              {editing === c.id ? (
+                <div className="catalogueedit">
+                  <label className="field">
+                    <span>Applicabilità</span>
+                    <select value={decision} onChange={e => setDecision(e.target.value)}>
+                      {['Da valutare', 'Applicabile', 'Non applicabile'].map(x => (
+                        <option key={x}>{x}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Motivazione, referente e data</span>
+                    <textarea
+                      value={note}
+                      maxLength={4000}
+                      onChange={e => setNote(e.target.value)}
+                      placeholder="Indica fatti, fonte e chi ha verificato."
+                    />
+                  </label>
+                  <button
+                    className="button primary compact"
+                    disabled={busy || (decision === 'Non applicabile' && !note.trim())}
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        const result = await onSave(c, decision, note, r);
+                        if (result) setEditing('');
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    Salva valutazione
+                  </button>
+                  <button className="textbutton" onClick={() => setEditing('')}>
+                    Annulla
+                  </button>
+                </div>
+              ) : (
+                <div className="cardactions">
+                  <button
+                    className="textbutton"
+                    onClick={() => {
+                      setEditing(c.id);
+                      setDecision(r?.data.status || 'Da valutare');
+                      setNote(r?.data.notes || '');
+                    }}
+                  >
+                    Valuta applicabilità
+                  </button>
+                  <button className="button secondary compact" onClick={() => onAdd(c)}>
+                    <Plus size={15} />
+                    Aggiungi documento
+                  </button>
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      {!filtered.length && <p className="panel">Nessuna voce corrispondente ai filtri.</p>}
+    </>
+  );
 }

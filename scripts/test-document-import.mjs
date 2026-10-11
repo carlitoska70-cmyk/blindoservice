@@ -1,33 +1,326 @@
-import {test} from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {DatabaseSync} from 'node:sqlite';
-import {handleImport} from '../lib/document-import.ts';
-import {jpegPdf,fileKind,documentPdf} from '../lib/photo-pdf.ts';
-function fixture(){
- const sqlite=new DatabaseSync(':memory:');
- sqlite.exec('CREATE TABLE files(id TEXT PRIMARY KEY,owner TEXT,name TEXT,mime TEXT,object_key TEXT,sha256 TEXT,created TEXT); CREATE TABLE records(id TEXT PRIMARY KEY,owner TEXT,kind TEXT,data TEXT,created TEXT,updated TEXT); CREATE TABLE grants(id TEXT,owner TEXT,file_id TEXT);');
- const db={prepare(sql){let values=[];return {bind(...v){values=v;return this},async first(){return sqlite.prepare(sql).get(...values)||null},async all(){return {results:sqlite.prepare(sql).all(...values)}},async run(){return {meta:{changes:sqlite.prepare(sql).run(...values).changes}}}}},async batch(statements){sqlite.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());sqlite.exec('COMMIT');return results}catch(e){sqlite.exec('ROLLBACK');throw e}}};
- const objects=new Map();let user='owner',calls=0;
- const deps={db,bucket:{async put(k,b){objects.set(k,b)},async delete(k){objects.delete(k)}},authorize:async()=>user?{userId:user}:null,validate:(data,complete)=>{if(complete&&!data.title)throw new Error('title');return data},recognize:async()=>{calls++;return Response.json({recognition:{fields:Object.fromEntries(['title','category','documentType','issuer','holder','vat','address','protocol','issued','expires','publicDescription'].map(k=>[k,{value:k==='title'?'Documento test':k==='category'?'Altro':null}]))}})}};
- const request=(body,query='')=>new Request('https://example.com/api/documents/import'+query,body?{method:'POST',headers:{Origin:'https://example.com',...(body instanceof FormData?{}:{'Content-Type':'application/json'})},body:body instanceof FormData?body:JSON.stringify(body)}:{});
- const call=(body,query)=>handleImport(request(body,query),deps);
- async function upload(id=crypto.randomUUID(),content='%PDF-1.4 test',name='test.pdf'){const body=new FormData();body.append('id',id);body.append('source','cartella/'+name);body.append('file',new File([content],name,{type:'application/pdf'}));const response=await call(body);return {response,...await response.json()}}
- return {sqlite,db,objects,deps,call,upload,request,user:v=>{user=v},calls:()=>calls};
+import { DatabaseSync } from 'node:sqlite';
+import { handleImport } from '../lib/document-import.ts';
+import { jpegPdf, fileKind, documentPdf } from '../lib/photo-pdf.ts';
+function fixture() {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec(
+    'CREATE TABLE files(id TEXT PRIMARY KEY,owner TEXT,name TEXT,mime TEXT,object_key TEXT,sha256 TEXT,created TEXT); CREATE TABLE records(id TEXT PRIMARY KEY,owner TEXT,kind TEXT,data TEXT,created TEXT,updated TEXT); CREATE TABLE grants(id TEXT,owner TEXT,file_id TEXT);',
+  );
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...v) {
+          values = v;
+          return this;
+        },
+        async first() {
+          return sqlite.prepare(sql).get(...values) || null;
+        },
+        async all() {
+          return { results: sqlite.prepare(sql).all(...values) };
+        },
+        async run() {
+          return { meta: { changes: sqlite.prepare(sql).run(...values).changes } };
+        },
+      };
+    },
+    async batch(statements) {
+      sqlite.exec('BEGIN');
+      try {
+        const results = [];
+        for (const s of statements) results.push(await s.run());
+        sqlite.exec('COMMIT');
+        return results;
+      } catch (e) {
+        sqlite.exec('ROLLBACK');
+        throw e;
+      }
+    },
+  };
+  const objects = new Map();
+  let user = 'owner',
+    calls = 0;
+  const deps = {
+    db,
+    bucket: {
+      async put(k, b) {
+        objects.set(k, b);
+      },
+      async delete(k) {
+        objects.delete(k);
+      },
+    },
+    authorize: async () => (user ? { userId: user } : null),
+    validate: (data, complete) => {
+      if (complete && !data.title) throw new Error('title');
+      return data;
+    },
+    recognize: async () => {
+      calls++;
+      return Response.json({
+        recognition: {
+          fields: Object.fromEntries(
+            [
+              'title',
+              'category',
+              'documentType',
+              'issuer',
+              'holder',
+              'vat',
+              'address',
+              'protocol',
+              'issued',
+              'expires',
+              'publicDescription',
+            ].map(k => [k, { value: k === 'title' ? 'Documento test' : k === 'category' ? 'Altro' : null }]),
+          ),
+        },
+      });
+    },
+  };
+  const request = (body, query = '') =>
+    new Request(
+      'https://example.com/api/documents/import' + query,
+      body
+        ? {
+            method: 'POST',
+            headers: {
+              Origin: 'https://example.com',
+              ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+            },
+            body: body instanceof FormData ? body : JSON.stringify(body),
+          }
+        : {},
+    );
+  const call = (body, query) => handleImport(request(body, query), deps);
+  async function upload(id = crypto.randomUUID(), content = '%PDF-1.4 test', name = 'test.pdf') {
+    const body = new FormData();
+    body.append('id', id);
+    body.append('source', 'cartella/' + name);
+    body.append('file', new File([content], name, { type: 'application/pdf' }));
+    const response = await call(body);
+    return { response, ...(await response.json()) };
+  }
+  return {
+    sqlite,
+    db,
+    objects,
+    deps,
+    call,
+    upload,
+    request,
+    user: v => {
+      user = v;
+    },
+    calls: () => calls,
+  };
 }
-test('folder items persist as private drafts and not archived documents',async()=>{const f=fixture(),a=await f.upload();assert.equal(a.response.status,200);assert.equal(f.objects.size,1);assert.equal(f.sqlite.prepare('SELECT count(*) n FROM records').get().n,0);assert.equal((await (await f.call()).json()).total,1);const reloaded=await (await f.call(undefined,'?id='+a.item.id)).json();assert.equal(reloaded.item.data.fileId,a.item.id);assert.equal(reloaded.item.data.title,'')});
-test('unauthenticated, cross-origin and cross-owner actions fail closed',async()=>{const f=fixture(),a=await f.upload();f.user(null);assert.equal((await f.call()).status,401);f.user('other');assert.equal((await f.call(undefined,'?id='+a.item.id)).status,404);assert.equal((await f.call({action:'discard',id:a.item.id,version:1})).status,404);assert.equal((await(await f.call()).json()).total,0);f.user('owner');assert.equal((await handleImport(new Request('https://example.com/api/documents/import',{method:'POST',headers:{origin:'https://evil.example'},body:'{}'}),f.deps)).status,403);assert.equal(f.objects.size,1)});
-test('upload retry and identical PDF do not create extra files',async()=>{const f=fixture(),a=await f.upload(),b=await f.upload(a.item.id),c=await f.upload();assert.equal(b.duplicate,true);assert.equal(c.duplicate,true);assert.equal(c.item.id,a.item.id);assert.equal(f.objects.size,1);assert.equal(f.sqlite.prepare('SELECT count(*) n FROM files').get().n,1)});
-test('photos or renamed non-PDF bytes are rejected by import endpoint',async()=>{const f=fixture();assert.equal((await f.upload(undefined,'not a pdf')).response.status,400);assert.equal(f.objects.size,0)});
-test('analysis fills a persistent proposal without committing it',async()=>{const f=fixture(),a=await f.upload();const r=await(await f.call({action:'analyze',id:a.item.id,version:1})).json();assert.equal(r.item.data.title,'Documento test');assert.equal(r.item.data.reviewed,false);assert.equal(r.item.version,2);assert.equal(f.calls(),1);assert.equal(f.sqlite.prepare('SELECT count(*) n FROM records').get().n,0)});
-test('analysis failure preserves PDF and manual fields',async()=>{const f=fixture(),a=await f.upload();f.deps.recognize=async()=>Response.json({error:'Credito esaurito'},{status:502});const r=await(await f.call({action:'analyze',id:a.item.id,version:1})).json();assert.equal(r.analysisFailed,true);assert.equal(r.item.error,'Credito esaurito');assert.equal(r.item.data.fileId,a.item.id);assert.equal(f.objects.size,1)});
-test('manual draft survives reload and stale edits cannot overwrite it',async()=>{const f=fixture(),a=await f.upload();const data={...a.item.data,title:'Corretto'};const r=await(await f.call({action:'draft',id:a.item.id,version:1,data})).json();assert.equal(r.item.data.title,'Corretto');assert.equal((await f.call({action:'save',id:a.item.id,version:1,data})).status,409);assert.equal((await(await f.call(undefined,'?id='+a.item.id)).json()).item.data.title,'Corretto')});
-test('confirmation saves exactly once, preserves owner and prevents file swapping',async()=>{const f=fixture(),a=await f.upload();const body={action:'save',id:a.item.id,version:1,data:{...a.item.data,title:'Confermato',fileId:'foreign'}};assert.equal((await f.call(body)).status,200);assert.equal((await f.call(body)).status,200);const records=f.sqlite.prepare('SELECT * FROM records').all();assert.equal(records.length,1);assert.equal(records[0].owner,'owner');assert.equal(JSON.parse(records[0].data).fileId,a.item.id);assert.equal((await(await f.call()).json()).total,0);assert.equal((await f.call({action:'discard',id:a.item.id,version:2})).status,409);assert.equal(f.objects.size,1);assert.equal((await f.upload()).archived,true)});
-test('discard deletes the draft PDF and supports idempotent retry',async()=>{const f=fixture(),a=await f.upload();const body={action:'discard',id:a.item.id,version:1};assert.equal((await f.call(body)).status,200);assert.equal((await f.call(body)).status,200);assert.equal(f.objects.size,0);assert.equal(f.sqlite.prepare('SELECT count(*) n FROM files').get().n,0);assert.equal((await(await f.call()).json()).total,0)});
-test('existing archive references block deletion',async()=>{const f=fixture(),a=await f.upload();f.sqlite.prepare('INSERT INTO grants VALUES(?,?,?)').run('grant','owner',a.item.id);assert.equal((await f.call({action:'discard',id:a.item.id,version:1})).status,409);assert.equal(f.objects.size,1)});
-test('active analysis lease blocks save; expired lease can recover',async()=>{const f=fixture(),a=await f.upload();f.sqlite.prepare('UPDATE document_imports SET lease=?').run(Date.now()+90000);assert.equal((await f.call({action:'save',id:a.item.id,version:1,data:{...a.item.data,title:'x'}})).status,409);f.sqlite.exec('UPDATE document_imports SET lease=0');assert.equal((await f.call({action:'analyze',id:a.item.id,version:1})).status,200)});
-test('R2 write followed by DB failure is cleaned up',async()=>{const f=fixture();const batch=f.db.batch;f.db.batch=async items=>{if(items.length===2&&f.objects.size)throw new Error('DB');return batch(items)};assert.equal((await f.upload()).response.status,503);assert.equal(f.objects.size,0)});
-test('large folders paginate with stable ordering and full count',async()=>{const f=fixture();await f.call();const stmt=f.sqlite.prepare('INSERT INTO document_imports(id,owner,file_id,source,data,created) VALUES(?,?,?,?,?,?)');for(let i=0;i<205;i++)stmt.run(String(i).padStart(4,'0'),'owner','f'+i,'path'+i,'{}','2026');const a=await(await f.call()).json(),b=await(await f.call(undefined,'?offset=100')).json(),c=await(await f.call(undefined,'?offset=200')).json();assert.equal(a.total,205);assert.equal(a.items.length,100);assert.equal(b.items.length,100);assert.equal(c.items.length,5);assert.equal(new Set([...a.items,...b.items,...c.items].map(x=>x.id)).size,205)});
-test('photo PDF has correct binary lengths, xref offsets and page orientation',()=>{const jpeg=new Uint8Array([255,216,255,0,13,10,255,217]);const bytes=jpegPdf(jpeg,1800,2400),text=new TextDecoder('latin1').decode(bytes);assert.match(text,/\/MediaBox \[0 0 595 793.333\]/);const xref=Number(text.match(/startxref\n(\d+)/)[1]);assert.equal(new TextDecoder().decode(bytes.slice(xref,xref+4)),'xref');for(const match of text.matchAll(/(\d{10}) 00000 n/g)){const offset=Number(match[1]);assert.match(new TextDecoder().decode(bytes.slice(offset,offset+8)),/^\d 0 obj/)}assert.ok(text.includes('/Length 8'));assert.throws(()=>jpegPdf(jpeg,0,2400))});
-test('PDF conversion bypass preserves original PDF bytes and recognizes missing MIME',async()=>{const file=new File(['%PDF-1.7'],'document.PDF');assert.equal(fileKind(file),'pdf');const result=await documentPdf(file);assert.equal(result.type,'application/pdf');assert.equal(await result.text(),'%PDF-1.7');assert.equal(fileKind({name:'photo.HEIC',type:''}),'photo');assert.equal(fileKind({name:'spreadsheet.xlsx',type:''}),'unsupported')});
-test('interrupted deletion can be retried and removes extracted metadata',async()=>{const f=fixture(),a=await f.upload();const remove=f.deps.bucket.delete;f.deps.bucket.delete=async()=>{throw new Error('R2 unavailable')};const body={action:'discard',id:a.item.id,version:1};assert.equal((await f.call(body)).status,503);assert.equal(f.objects.size,1);f.deps.bucket.delete=remove;assert.equal((await f.call(body)).status,200);assert.equal(f.objects.size,0);const row=f.sqlite.prepare('SELECT data,source FROM document_imports').get();assert.equal(row.data,'{}');assert.equal(row.source,'')});
-test('oversized JSON is stopped without needing a Content-Length header',async()=>{const f=fixture();const request=new Request('https://example.com/api/documents/import',{method:'POST',headers:{origin:'https://example.com'},body:'x'.repeat(45001)});assert.equal((await handleImport(request,f.deps)).status,413)});
+test('folder items persist as private drafts and not archived documents', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  assert.equal(a.response.status, 200);
+  assert.equal(f.objects.size, 1);
+  assert.equal(f.sqlite.prepare('SELECT count(*) n FROM records').get().n, 0);
+  assert.equal((await (await f.call()).json()).total, 1);
+  const reloaded = await (await f.call(undefined, '?id=' + a.item.id)).json();
+  assert.equal(reloaded.item.data.fileId, a.item.id);
+  assert.equal(reloaded.item.data.title, '');
+});
+test('unauthenticated, cross-origin and cross-owner actions fail closed', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  f.user(null);
+  assert.equal((await f.call()).status, 401);
+  f.user('other');
+  assert.equal((await f.call(undefined, '?id=' + a.item.id)).status, 404);
+  assert.equal((await f.call({ action: 'discard', id: a.item.id, version: 1 })).status, 404);
+  assert.equal((await (await f.call()).json()).total, 0);
+  f.user('owner');
+  assert.equal(
+    (
+      await handleImport(
+        new Request('https://example.com/api/documents/import', {
+          method: 'POST',
+          headers: { origin: 'https://evil.example' },
+          body: '{}',
+        }),
+        f.deps,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(f.objects.size, 1);
+});
+test('upload retry and identical PDF do not create extra files', async () => {
+  const f = fixture(),
+    a = await f.upload(),
+    b = await f.upload(a.item.id),
+    c = await f.upload();
+  assert.equal(b.duplicate, true);
+  assert.equal(c.duplicate, true);
+  assert.equal(c.item.id, a.item.id);
+  assert.equal(f.objects.size, 1);
+  assert.equal(f.sqlite.prepare('SELECT count(*) n FROM files').get().n, 1);
+});
+test('photos or renamed non-PDF bytes are rejected by import endpoint', async () => {
+  const f = fixture();
+  assert.equal((await f.upload(undefined, 'not a pdf')).response.status, 400);
+  assert.equal(f.objects.size, 0);
+});
+test('analysis fills a persistent proposal without committing it', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  const r = await (await f.call({ action: 'analyze', id: a.item.id, version: 1 })).json();
+  assert.equal(r.item.data.title, 'Documento test');
+  assert.equal(r.item.data.reviewed, false);
+  assert.equal(r.item.version, 2);
+  assert.equal(f.calls(), 1);
+  assert.equal(f.sqlite.prepare('SELECT count(*) n FROM records').get().n, 0);
+});
+test('analysis failure preserves PDF and manual fields', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  f.deps.recognize = async () => Response.json({ error: 'Credito esaurito' }, { status: 502 });
+  const r = await (await f.call({ action: 'analyze', id: a.item.id, version: 1 })).json();
+  assert.equal(r.analysisFailed, true);
+  assert.equal(r.item.error, 'Credito esaurito');
+  assert.equal(r.item.data.fileId, a.item.id);
+  assert.equal(f.objects.size, 1);
+});
+test('manual draft survives reload and stale edits cannot overwrite it', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  const data = { ...a.item.data, title: 'Corretto' };
+  const r = await (await f.call({ action: 'draft', id: a.item.id, version: 1, data })).json();
+  assert.equal(r.item.data.title, 'Corretto');
+  assert.equal((await f.call({ action: 'save', id: a.item.id, version: 1, data })).status, 409);
+  assert.equal((await (await f.call(undefined, '?id=' + a.item.id)).json()).item.data.title, 'Corretto');
+});
+test('confirmation saves exactly once, preserves owner and prevents file swapping', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  const body = {
+    action: 'save',
+    id: a.item.id,
+    version: 1,
+    data: { ...a.item.data, title: 'Confermato', fileId: 'foreign' },
+  };
+  assert.equal((await f.call(body)).status, 200);
+  assert.equal((await f.call(body)).status, 200);
+  const records = f.sqlite.prepare('SELECT * FROM records').all();
+  assert.equal(records.length, 1);
+  assert.equal(records[0].owner, 'owner');
+  assert.equal(JSON.parse(records[0].data).fileId, a.item.id);
+  assert.equal((await (await f.call()).json()).total, 0);
+  assert.equal((await f.call({ action: 'discard', id: a.item.id, version: 2 })).status, 409);
+  assert.equal(f.objects.size, 1);
+  assert.equal((await f.upload()).archived, true);
+});
+test('discard deletes the draft PDF and supports idempotent retry', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  const body = { action: 'discard', id: a.item.id, version: 1 };
+  assert.equal((await f.call(body)).status, 200);
+  assert.equal((await f.call(body)).status, 200);
+  assert.equal(f.objects.size, 0);
+  assert.equal(f.sqlite.prepare('SELECT count(*) n FROM files').get().n, 0);
+  assert.equal((await (await f.call()).json()).total, 0);
+});
+test('existing archive references block deletion', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  f.sqlite.prepare('INSERT INTO grants VALUES(?,?,?)').run('grant', 'owner', a.item.id);
+  assert.equal((await f.call({ action: 'discard', id: a.item.id, version: 1 })).status, 409);
+  assert.equal(f.objects.size, 1);
+});
+test('active analysis lease blocks save; expired lease can recover', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  f.sqlite.prepare('UPDATE document_imports SET lease=?').run(Date.now() + 90000);
+  assert.equal(
+    (await f.call({ action: 'save', id: a.item.id, version: 1, data: { ...a.item.data, title: 'x' } }))
+      .status,
+    409,
+  );
+  f.sqlite.exec('UPDATE document_imports SET lease=0');
+  assert.equal((await f.call({ action: 'analyze', id: a.item.id, version: 1 })).status, 200);
+});
+test('R2 write followed by DB failure is cleaned up', async () => {
+  const f = fixture();
+  const batch = f.db.batch;
+  f.db.batch = async items => {
+    if (items.length === 2 && f.objects.size) throw new Error('DB');
+    return batch(items);
+  };
+  assert.equal((await f.upload()).response.status, 503);
+  assert.equal(f.objects.size, 0);
+});
+test('large folders paginate with stable ordering and full count', async () => {
+  const f = fixture();
+  await f.call();
+  const stmt = f.sqlite.prepare(
+    'INSERT INTO document_imports(id,owner,file_id,source,data,created) VALUES(?,?,?,?,?,?)',
+  );
+  for (let i = 0; i < 205; i++)
+    stmt.run(String(i).padStart(4, '0'), 'owner', 'f' + i, 'path' + i, '{}', '2026');
+  const a = await (await f.call()).json(),
+    b = await (await f.call(undefined, '?offset=100')).json(),
+    c = await (await f.call(undefined, '?offset=200')).json();
+  assert.equal(a.total, 205);
+  assert.equal(a.items.length, 100);
+  assert.equal(b.items.length, 100);
+  assert.equal(c.items.length, 5);
+  assert.equal(new Set([...a.items, ...b.items, ...c.items].map(x => x.id)).size, 205);
+});
+test('photo PDF has correct binary lengths, xref offsets and page orientation', () => {
+  const jpeg = new Uint8Array([255, 216, 255, 0, 13, 10, 255, 217]);
+  const bytes = jpegPdf(jpeg, 1800, 2400),
+    text = new TextDecoder('latin1').decode(bytes);
+  assert.match(text, /\/MediaBox \[0 0 595 793.333\]/);
+  const xref = Number(text.match(/startxref\n(\d+)/)[1]);
+  assert.equal(new TextDecoder().decode(bytes.slice(xref, xref + 4)), 'xref');
+  for (const match of text.matchAll(/(\d{10}) 00000 n/g)) {
+    const offset = Number(match[1]);
+    assert.match(new TextDecoder().decode(bytes.slice(offset, offset + 8)), /^\d 0 obj/);
+  }
+  assert.ok(text.includes('/Length 8'));
+  assert.throws(() => jpegPdf(jpeg, 0, 2400));
+});
+test('PDF conversion bypass preserves original PDF bytes and recognizes missing MIME', async () => {
+  const file = new File(['%PDF-1.7'], 'document.PDF');
+  assert.equal(fileKind(file), 'pdf');
+  const result = await documentPdf(file);
+  assert.equal(result.type, 'application/pdf');
+  assert.equal(await result.text(), '%PDF-1.7');
+  assert.equal(fileKind({ name: 'photo.HEIC', type: '' }), 'photo');
+  assert.equal(fileKind({ name: 'spreadsheet.xlsx', type: '' }), 'unsupported');
+});
+test('interrupted deletion can be retried and removes extracted metadata', async () => {
+  const f = fixture(),
+    a = await f.upload();
+  const remove = f.deps.bucket.delete;
+  f.deps.bucket.delete = async () => {
+    throw new Error('R2 unavailable');
+  };
+  const body = { action: 'discard', id: a.item.id, version: 1 };
+  assert.equal((await f.call(body)).status, 503);
+  assert.equal(f.objects.size, 1);
+  f.deps.bucket.delete = remove;
+  assert.equal((await f.call(body)).status, 200);
+  assert.equal(f.objects.size, 0);
+  const row = f.sqlite.prepare('SELECT data,source FROM document_imports').get();
+  assert.equal(row.data, '{}');
+  assert.equal(row.source, '');
+});
+test('oversized JSON is stopped without needing a Content-Length header', async () => {
+  const f = fixture();
+  const request = new Request('https://example.com/api/documents/import', {
+    method: 'POST',
+    headers: { origin: 'https://example.com' },
+    body: 'x'.repeat(45001),
+  });
+  assert.equal((await handleImport(request, f.deps)).status, 413);
+});

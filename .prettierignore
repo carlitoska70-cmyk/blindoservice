@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+.next
+.vinext
+.wrangler
+.sites-runtime
+vendor
+drizzle
+components/ui
+pnpm-lock.yaml
+*.json
+*.md
+*.txt

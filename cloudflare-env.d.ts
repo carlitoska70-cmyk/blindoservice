@@ -4,5 +4,6 @@ declare namespace Cloudflare {
     BUCKET?: R2Bucket;
     PRESIDIO_OWNER_EMAIL?: string;
     OPENAI_API_KEY?: string;
+    PRESIDIO_ADMIN_CREDENTIALS?: string;
   }
 }

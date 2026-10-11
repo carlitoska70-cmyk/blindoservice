@@ -1,10 +1,146 @@
 'use client';
-import {useState} from 'react';
-import {Entry} from '@/lib/product';
-import {toast} from 'sonner';
-import {FileText} from 'lucide-react';
-export default function AiPanel({records,inspectionId,ready,onRefresh}:{records:Entry[];inspectionId:string;ready:boolean;onRefresh:()=>Promise<any>}){
- const [busy,setBusy]=useState(false);const rows=records.filter(r=>r.data.inspectionId===inspectionId);const transcripts=rows.filter(r=>r.kind==='transcript'),reviews=rows.filter(r=>r.kind==='review');
- async function run(action:string,eventId?:string){setBusy(true);try{const r=await fetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,inspectionId,eventId})});const d:any=await r.json();if(!r.ok)throw new Error(d.error);await onRefresh();toast.success(action==='transcribe'?'Trascrizione archiviata, da verificare':'Bozza di riesame archiviata')}catch(e){toast.error((e as Error).message)}finally{setBusy(false)}}
- return <section className="panel aipanel"><div className="sectionhead"><h2>Trascrizione e riesame del controllo</h2><span className={'badge '+(ready?'blue':'amber')}>{ready?'Servizio collegato':'IA non collegata'}</span></div><p className="muted">Trascrizione su richiesta degli audio archiviati e bozza di riesame. Nessun riconoscimento dell’identità dalla voce. L’ascolto IA continuo e le risposte legali in diretta non sono ancora disponibili.</p>{!ready&&<p className="notice">Per attivare queste funzioni occorre collegare OpenAI Developers e configurare il servizio per questo sito. Nessun audio viene inviato al servizio da questa pagina finché non è attivato e richiesto.</p>}{rows.filter(r=>r.kind==='event'&&r.data.fileId).map(r=><div className="linkedfile" key={r.id}><FileText/><span>{r.data.fileName||'Audio archiviato'}</span><button className="button secondary compact" disabled={!ready||busy||transcripts.some(t=>t.data.eventId===r.id)} onClick={()=>run('transcribe',r.id)}>{transcripts.some(t=>t.data.eventId===r.id)?'Trascritto':busy?'Elaborazione…':'Invia e trascrivi'}</button></div>)}{transcripts.map(t=><details className="transcript" key={t.id}><summary>{t.data.fileName} · trascrizione automatica da verificare</summary><p className="smallnote">Le etichette degli interlocutori distinguono le voci nel segmento e non identificano persone. Tempi relativi al singolo audio.</p>{t.data.segments?.length?t.data.segments.map((s:any,i:number)=><p key={i}><strong>{Math.floor(s.start/60)}:{Math.floor(s.start%60).toString().padStart(2,'0')} · Voce {s.speaker}</strong> {s.text}</p>):<p>{t.data.text}</p>}</details>)}<button className="button primary" disabled={!ready||busy||!transcripts.length} onClick={()=>run('review')}>Prepara bozza per il legale</button><p className="smallnote">L’elaborazione invia audio o trascrizione al fornitore IA. Il riesame non consulta ancora una banca dati normativa e non accerta illeciti.</p>{reviews.map(r=><article className="review" key={r.id}><h3>Bozza di riesame · {new Date(r.created).toLocaleString('it-IT')}</h3><p>{r.data.summary}</p>{r.data.passages.map((p:any,i:number)=><div className="reviewpassage" key={i}><blockquote>«{p.quote}»</blockquote><p><strong>Questione:</strong> {p.reason}</p><p><strong>Altra lettura possibile:</strong> {p.alternative}</p><p><strong>Da verificare:</strong> {p.verification}</p><small>Trascrizione: {p.transcriptId.slice(0,8)}. Controllare l’originale audio.</small></div>)}<h4>Azioni proposte</h4><ul>{r.data.actions.map((a:string,i:number)=><li key={i}>{a}</li>)}</ul><p className="smallnote">{r.data.limitations}</p></article>)}</section>
+import { useState } from 'react';
+import { Entry } from '@/lib/product';
+import { toast } from 'sonner';
+import { FileText } from 'lucide-react';
+export default function AiPanel({
+  records,
+  inspectionId,
+  ready,
+  onRefresh,
+}: {
+  records: Entry[];
+  inspectionId: string;
+  ready: boolean;
+  onRefresh: () => Promise<any>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const rows = records.filter(r => r.data.inspectionId === inspectionId);
+  const transcripts = rows.filter(r => r.kind === 'transcript'),
+    reviews = rows.filter(r => r.kind === 'review');
+  async function run(action: string, eventId?: string) {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, inspectionId, eventId }),
+      });
+      const d: any = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      await onRefresh();
+      toast.success(
+        action === 'transcribe' ? 'Trascrizione archiviata, da verificare' : 'Bozza di riesame archiviata',
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="panel aipanel">
+      <div className="sectionhead">
+        <h2>Trascrizione e riesame del controllo</h2>
+        <span className={'badge ' + (ready ? 'blue' : 'amber')}>
+          {ready ? 'Servizio collegato' : 'IA non collegata'}
+        </span>
+      </div>
+      <p className="muted">
+        Trascrizione su richiesta degli audio archiviati e bozza di riesame. Nessun riconoscimento
+        dell’identità dalla voce. L’ascolto IA continuo e le risposte legali in diretta non sono ancora
+        disponibili.
+      </p>
+      {!ready && (
+        <p className="notice">
+          Per attivare queste funzioni occorre collegare OpenAI Developers e configurare il servizio per
+          questo sito. Nessun audio viene inviato al servizio da questa pagina finché non è attivato e
+          richiesto.
+        </p>
+      )}
+      {rows
+        .filter(r => r.kind === 'event' && r.data.fileId)
+        .map(r => (
+          <div className="linkedfile" key={r.id}>
+            <FileText />
+            <span>{r.data.fileName || 'Audio archiviato'}</span>
+            <button
+              className="button secondary compact"
+              disabled={!ready || busy || transcripts.some(t => t.data.eventId === r.id)}
+              onClick={() => run('transcribe', r.id)}
+            >
+              {transcripts.some(t => t.data.eventId === r.id)
+                ? 'Trascritto'
+                : busy
+                  ? 'Elaborazione…'
+                  : 'Invia e trascrivi'}
+            </button>
+          </div>
+        ))}
+      {transcripts.map(t => (
+        <details className="transcript" key={t.id}>
+          <summary>{t.data.fileName} · trascrizione automatica da verificare</summary>
+          <p className="smallnote">
+            Le etichette degli interlocutori distinguono le voci nel segmento e non identificano persone.
+            Tempi relativi al singolo audio.
+          </p>
+          {t.data.segments?.length ? (
+            t.data.segments.map((s: any, i: number) => (
+              <p key={i}>
+                <strong>
+                  {Math.floor(s.start / 60)}:
+                  {Math.floor(s.start % 60)
+                    .toString()
+                    .padStart(2, '0')}{' '}
+                  · Voce {s.speaker}
+                </strong>{' '}
+                {s.text}
+              </p>
+            ))
+          ) : (
+            <p>{t.data.text}</p>
+          )}
+        </details>
+      ))}
+      <button
+        className="button primary"
+        disabled={!ready || busy || !transcripts.length}
+        onClick={() => run('review')}
+      >
+        Prepara bozza per il legale
+      </button>
+      <p className="smallnote">
+        L’elaborazione invia audio o trascrizione al fornitore IA. Il riesame non consulta ancora una banca
+        dati normativa e non accerta illeciti.
+      </p>
+      {reviews.map(r => (
+        <article className="review" key={r.id}>
+          <h3>Bozza di riesame · {new Date(r.created).toLocaleString('it-IT')}</h3>
+          <p>{r.data.summary}</p>
+          {r.data.passages.map((p: any, i: number) => (
+            <div className="reviewpassage" key={i}>
+              <blockquote>«{p.quote}»</blockquote>
+              <p>
+                <strong>Questione:</strong> {p.reason}
+              </p>
+              <p>
+                <strong>Altra lettura possibile:</strong> {p.alternative}
+              </p>
+              <p>
+                <strong>Da verificare:</strong> {p.verification}
+              </p>
+              <small>Trascrizione: {p.transcriptId.slice(0, 8)}. Controllare l’originale audio.</small>
+            </div>
+          ))}
+          <h4>Azioni proposte</h4>
+          <ul>
+            {r.data.actions.map((a: string, i: number) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+          <p className="smallnote">{r.data.limitations}</p>
+        </article>
+      ))}
+    </section>
+  );
 }

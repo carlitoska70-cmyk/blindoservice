@@ -1,105 +1,1762 @@
 'use client';
-import {useEffect,useMemo,useRef,useState} from 'react';
-import {ShieldCheck,FolderOpen,ScanLine,Radio,ArrowUpRight,Plus,FileText,Clock,Search,ChevronRight,Mic,Square,Download,Check,AlertTriangle,Building2,BookOpen,ClipboardList,LockKeyhole,ExternalLink,CalendarDays,Save,Headphones} from 'lucide-react';
-import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
-import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
-import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
-import {Checkbox} from '@/components/ui/checkbox';
-import {Toaster,toast} from 'sonner';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ShieldCheck,
+  FolderOpen,
+  ScanLine,
+  Radio,
+  ArrowUpRight,
+  Plus,
+  FileText,
+  Clock,
+  Search,
+  ChevronRight,
+  Mic,
+  Square,
+  Download,
+  Check,
+  AlertTriangle,
+  Building2,
+  BookOpen,
+  ClipboardList,
+  LockKeyhole,
+  ExternalLink,
+  CalendarDays,
+  Save,
+  Headphones,
+} from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Toaster, toast } from 'sonner';
 import CataloguePanel from './catalogue-workbench';
-import {prepareCatalogLink} from '@/lib/catalogue-matching';
+import { prepareCatalogLink } from '@/lib/catalogue-matching';
 import CatalogueSources from './catalogue-sources';
-import ControlRoom,{useRoom} from './control-room';
+import ControlRoom, { useRoom } from './control-room';
 import AiPanel from './ai-panel';
 import DocumentEditor from './document-editor';
 import DocumentImporter from './document-importer';
-import {categories,checks,dayDiff,defaultProfile,docState,Entry,guidance,Profile,sources} from '@/lib/product';
-const fmt=(s:string)=>s?new Date(s.length===10?s+'T12:00:00':s).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric',timeZone:'Europe/Rome'}):'Non indicata';
-const time=(s:string)=>new Date(s).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Europe/Rome'});
-const emptyDoc={title:'',category:categories[0],expires:'',issued:'',vat:'',address:'',notes:'',fileId:'',fileName:'',reviewed:false,reviewer:'',protocol:'',catalogId:'',priority:'Prioritario',publicDescription:''};
-const emptyInspection={authority:'',scope:'',officers:'',reference:'',status:'aperto',outcome:'',started:'',ended:''};
-const emptyTask={title:'',responsible:'',due:'',notes:'',done:false};
-function Badge({children,tone='gray'}:{children:React.ReactNode;tone?:string}){return <span className={'badge '+tone}>{children}</span>}
-function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="field"><span>{label}</span>{children}</label>}
-function Pick({value,onChange,options}:{value:string;onChange:(v:string)=>void;options:string[]}){return <Select value={value} onValueChange={onChange}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{options.map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>}
-async function api(body?:unknown){const r=await fetch('/api/state',body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});const data:any=await r.json();if(!r.ok)throw new Error(data.error||'Operazione non riuscita');return data}
-async function upload(file:File){const f=new FormData();f.append('file',file);const r=await fetch('/api/files',{method:'POST',body:f});const data:any=await r.json();if(!r.ok)throw new Error(data.error||'Caricamento non riuscito');return data}
-function download(text:string,name:string,type='application/json'){const u=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
-export default function Presidio({name}:{name:string}){
- const [tab,setTab]=useState('overview'),[profile,setProfile]=useState<Profile>(defaultProfile),[draftProfile,setDraftProfile]=useState<Profile>(defaultProfile),[records,setRecords]=useState<Entry[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[busy,setBusy]=useState(false);
- const [importOpen,setImportOpen]=useState(false);
- const [modal,setModal]=useState(''),[editing,setEditing]=useState<Entry|null>(null),[form,setForm]=useState<any>({}),[file,setFile]=useState<File|null>(null),[query,setQuery]=useState(''),[filter,setFilter]=useState('Tutte');
- const [selected,setSelected]=useState(''),[question,setQuestion]=useState(''),[speaker,setSpeaker]=useState('Controllore 1'),[tag,setTag]=useState('Richiesta'),[rec,setRec]=useState(false),[recordReady,setRecordReady]=useState(false),[elapsed,setElapsed]=useState(0),[audio,setAudio]=useState<File|null>(null),[audioUrl,setAudioUrl]=useState('');
- const recorder=useRef<MediaRecorder|null>(null), stream=useRef<MediaStream|null>(null), recAt=useRef(0), selectedRef=useRef('');
- const room=useRoom();const liveVisits=room.data?.visits.filter((v:any)=>v.status!=='chiusa'&&Date.parse(v.expires)>Date.now()&&Date.now()-Date.parse(v.last_seen)<20000)||[];
- const documents=useMemo(()=>records.filter(x=>x.kind==='document'),[records]);const inspections=records.filter(x=>x.kind==='inspection');const tasks=records.filter(x=>x.kind==='task');const current=inspections.find(x=>x.id===selected);const events=records.filter(x=>x.kind==='event'&&x.data.inspectionId===selected).sort((a,b)=>a.created.localeCompare(b.created));const findings=checks(profile,documents);const suggestion=guidance(question,documents);
- async function refresh(initial=false){try{const data=await api();setProfile(data.profile);if(initial)setDraftProfile(data.profile);setRecords(data.records);setError('');return data}catch(e){setError((e as Error).message);throw e}finally{setLoading(false)}}
- useEffect(()=>{refresh(true).catch(()=>{});if(location.hash==='#controllo')setTab('control');return ()=>{if(recorder.current?.state==='recording')recorder.current.stop();stream.current?.getTracks().forEach(x=>x.stop())}},[]);
- useEffect(()=>{if(!rec)return;const id=setInterval(()=>setElapsed(Math.floor((Date.now()-recAt.current)/1000)),1000);return()=>clearInterval(id)},[rec]);
- useEffect(()=>{if(!audio){setAudioUrl('');return}const u=URL.createObjectURL(audio);setAudioUrl(u);return()=>URL.revokeObjectURL(u)},[audio]);
- useEffect(()=>{const before=(e:BeforeUnloadEvent)=>{if(rec||audio){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',before);return()=>window.removeEventListener('beforeunload',before)},[rec,audio]);
- useEffect(()=>{const context=(document as any).modelContext;if(!context?.registerTool)return;const lifecycle=new AbortController();Promise.resolve(context.registerTool({name:'search_presidio_documents',title:'Cerca documenti in Presidio',description:'Legge i metadati dell’archivio dell’utente e apre la ricerca. Non trasmette allegati.',inputSchema:{type:'object',properties:{query:{type:'string',maxLength:200}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:async(input:any)=>{if(!input||typeof input.query!=='string'||input.query.length>200||Object.keys(input).some(x=>x!=='query'))throw new Error('Query non valida');const data=await api();setQuery(input.query);setTab('archive');setRecords(data.records);return data.records.filter((x:Entry)=>x.kind==='document'&&x.data.title.toLowerCase().includes(input.query.toLowerCase())).map((x:Entry)=>({id:x.id,title:x.data.title,category:x.data.category,expires:x.data.expires}))}}, {signal:lifecycle.signal})).catch(()=>{});return()=>lifecycle.abort()},[]);
- async function action(body:any,message:string){setBusy(true);try{const result=await api(body);await refresh();toast.success(message);return result}catch(e){toast.error((e as Error).message);return null}finally{setBusy(false)}}
- async function linkMany(c:any,docs:any[]){setBusy(true);const successIds:string[]=[],failures:any[]=[];try{for(const doc of docs){try{await api({action:'update',kind:'document',id:doc.id,version:doc.updated,data:prepareCatalogLink(doc.data,c.id,true)});successIds.push(doc.id)}catch(e){failures.push({id:doc.id,title:doc.data.title,error:(e as Error).message})}}try{await refresh()}catch{toast.error('Abbinamenti salvati: ricarica la pagina per aggiornare l’elenco.')}return {successIds,failures}}finally{setBusy(false)}}
- function open(kind:string,entry:Entry|null=null){if(kind==='document'&&!entry){setImportOpen(true);return}setEditing(entry);setFile(null);setForm(entry?{...entry.data}:{...(kind==='document'?emptyDoc:kind==='inspection'?emptyInspection:emptyTask)});setModal(kind)}
- async function saveForm(e:React.FormEvent){e.preventDefault();setBusy(true);try{let data={...form};if(modal==='document'&&file){const f=await upload(file);data={...data,fileId:f.id,fileName:f.name};setForm(data);setFile(null)}if(modal==='inspection'&&!editing)data.started=new Date().toISOString();const r=await api({action:editing?'update':'create',kind:modal,id:editing?.id,version:editing?.updated,data});await refresh();if(modal==='inspection'){setSelected(r.id);setTab('control')}setModal('');toast.success('Salvato nell’archivio')}catch(e){toast.error((e as Error).message)}finally{setBusy(false)}}
- async function addEvent(){if(!current||!question.trim())return;const result=await action({action:'create',kind:'event',data:{inspectionId:current.id,speaker,text:question,tag,offset:Math.max(0,Math.floor((Date.now()-Date.parse(current.data.started))/1000))}},'Annotazione aggiunta');if(result)setQuestion('')}
- async function record(){if(!current||!recordReady)return;try{if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined')throw new Error('Registrazione non supportata: puoi allegare un audio già acquisito.');const s=await navigator.mediaDevices.getUserMedia({audio:true});stream.current=s;const mime=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(x=>MediaRecorder.isTypeSupported(x));const r=new MediaRecorder(s,mime?{mimeType:mime,audioBitsPerSecond:64000}:{audioBitsPerSecond:64000});recorder.current=r;let chunks:Blob[]=[];let size=0;selectedRef.current=current.id;r.ondataavailable=e=>{if(e.data.size){chunks.push(e.data);size+=e.data.size;if(size>18*1024*1024&&r.state==='recording'){r.stop();toast.info('Raggiunto il limite del segmento. Salva questo audio prima di proseguire.')}}};r.onstop=()=>{s.getTracks().forEach(x=>x.stop());setRec(false);const type=r.mimeType||'audio/webm';const ext=type.includes('mp4')?'m4a':'webm';const captured=new File(chunks,['controllo',new Date().toISOString().replace(/[:.]/g,'-')].join('-')+'.'+ext,{type});setAudio(captured);chunks=[];persistAudio(captured,selectedRef.current,current.data.started,recAt.current)};r.onerror=()=>{toast.error('Registrazione interrotta. Verifica l’audio recuperato.');if(r.state==='recording')r.stop();s.getTracks().forEach(x=>x.stop());setRec(false)};recAt.current=Date.now();setElapsed(0);r.start(1000);setRec(true)}catch(e){toast.error((e as Error).message)}}
- async function persistAudio(captured:File,inspectionId:string,started:string,recordedAt:number){setBusy(true);try{const f=await upload(captured);await api({action:'create',kind:'event',data:{inspectionId,speaker:'Audio del controllo',text:'Segmento audio originale. Inizio acquisizione: '+(recordedAt?new Date(recordedAt).toISOString():'non rilevato, allegato esterno')+'. Trascrizione da verificare.',tag:'Registrazione',offset:Math.max(0,Math.floor(((recordedAt||Date.now())-Date.parse(started))/1000)),fileId:f.id,fileName:f.name}});setAudio(null);await refresh();toast.success('Audio archiviato automaticamente')}catch(e){toast.error((e as Error).message+' L’audio resta disponibile: salva la copia locale.')}finally{setBusy(false)}}
- async function saveAudio(){if(audio&&current)await persistAudio(audio,selectedRef.current||current.id,current.data.started,recAt.current)}
+import {
+  categories,
+  checks,
+  dayDiff,
+  defaultProfile,
+  docState,
+  Entry,
+  guidance,
+  Profile,
+  sources,
+} from '@/lib/product';
+const fmt = (s: string) =>
+  s
+    ? new Date(s.length === 10 ? s + 'T12:00:00' : s).toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Europe/Rome',
+      })
+    : 'Non indicata';
+const time = (s: string) =>
+  new Date(s).toLocaleTimeString('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: 'Europe/Rome',
+  });
+const emptyDoc = {
+  title: '',
+  category: categories[0],
+  expires: '',
+  issued: '',
+  vat: '',
+  address: '',
+  notes: '',
+  fileId: '',
+  fileName: '',
+  reviewed: false,
+  reviewer: '',
+  protocol: '',
+  catalogId: '',
+  priority: 'Prioritario',
+  publicDescription: '',
+};
+const emptyInspection = {
+  authority: '',
+  scope: '',
+  officers: '',
+  reference: '',
+  status: 'aperto',
+  outcome: '',
+  started: '',
+  ended: '',
+};
+const emptyTask = { title: '', responsible: '', due: '', notes: '', done: false };
+function Badge({ children, tone = 'gray' }: { children: React.ReactNode; tone?: string }) {
+  return <span className={'badge ' + tone}>{children}</span>;
+}
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+function Pick({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(x => (
+          <SelectItem key={x} value={x}>
+            {x}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+async function api(body?: unknown) {
+  const r = await fetch(
+    '/api/state',
+    body
+      ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      : { cache: 'no-store' },
+  );
+  const data: any = await r.json();
+  if (!r.ok) throw new Error(data.error || 'Operazione non riuscita');
+  return data;
+}
+async function upload(file: File) {
+  const f = new FormData();
+  f.append('file', file);
+  const r = await fetch('/api/files', { method: 'POST', body: f });
+  const data: any = await r.json();
+  if (!r.ok) throw new Error(data.error || 'Caricamento non riuscito');
+  return data;
+}
+function download(text: string, name: string, type = 'application/json') {
+  const u = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = u;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 1000);
+}
+export default function Presidio({ name }: { name: string }) {
+  const [tab, setTab] = useState('overview'),
+    [profile, setProfile] = useState<Profile>(defaultProfile),
+    [draftProfile, setDraftProfile] = useState<Profile>(defaultProfile),
+    [records, setRecords] = useState<Entry[]>([]),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [modal, setModal] = useState(''),
+    [editing, setEditing] = useState<Entry | null>(null),
+    [form, setForm] = useState<any>({}),
+    [file, setFile] = useState<File | null>(null),
+    [query, setQuery] = useState(''),
+    [filter, setFilter] = useState('Tutte');
+  const [selected, setSelected] = useState(''),
+    [question, setQuestion] = useState(''),
+    [speaker, setSpeaker] = useState('Controllore 1'),
+    [tag, setTag] = useState('Richiesta'),
+    [rec, setRec] = useState(false),
+    [recordReady, setRecordReady] = useState(false),
+    [elapsed, setElapsed] = useState(0),
+    [audio, setAudio] = useState<File | null>(null),
+    [audioUrl, setAudioUrl] = useState('');
+  const recorder = useRef<MediaRecorder | null>(null),
+    stream = useRef<MediaStream | null>(null),
+    recAt = useRef(0),
+    selectedRef = useRef('');
+  const room = useRoom();
+  const liveVisits =
+    room.data?.visits.filter(
+      (v: any) =>
+        v.status !== 'chiusa' &&
+        Date.parse(v.expires) > Date.now() &&
+        Date.now() - Date.parse(v.last_seen) < 20000,
+    ) || [];
+  const documents = useMemo(() => records.filter(x => x.kind === 'document'), [records]);
+  const inspections = records.filter(x => x.kind === 'inspection');
+  const tasks = records.filter(x => x.kind === 'task');
+  const current = inspections.find(x => x.id === selected);
+  const events = records
+    .filter(x => x.kind === 'event' && x.data.inspectionId === selected)
+    .sort((a, b) => a.created.localeCompare(b.created));
+  const findings = checks(profile, documents);
+  const suggestion = guidance(question, documents);
+  async function refresh(initial = false) {
+    try {
+      const data = await api();
+      setProfile(data.profile);
+      if (initial) setDraftProfile(data.profile);
+      setRecords(data.records);
+      setError('');
+      return data;
+    } catch (e) {
+      setError((e as Error).message);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    refresh(true).catch(() => {});
+    if (location.hash === '#controllo') setTab('control');
+    return () => {
+      if (recorder.current?.state === 'recording') recorder.current.stop();
+      stream.current?.getTracks().forEach(x => x.stop());
+    };
+  }, []);
+  useEffect(() => {
+    if (!rec) return;
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - recAt.current) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [rec]);
+  useEffect(() => {
+    if (!audio) {
+      setAudioUrl('');
+      return;
+    }
+    const u = URL.createObjectURL(audio);
+    setAudioUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [audio]);
+  useEffect(() => {
+    const before = (e: BeforeUnloadEvent) => {
+      if (rec || audio) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', before);
+    return () => window.removeEventListener('beforeunload', before);
+  }, [rec, audio]);
+  useEffect(() => {
+    const context = (document as any).modelContext;
+    if (!context?.registerTool) return;
+    const lifecycle = new AbortController();
+    Promise.resolve(
+      context.registerTool(
+        {
+          name: 'search_presidio_documents',
+          title: 'Cerca documenti in Presidio',
+          description:
+            'Legge i metadati dell’archivio dell’utente e apre la ricerca. Non trasmette allegati.',
+          inputSchema: {
+            type: 'object',
+            properties: { query: { type: 'string', maxLength: 200 } },
+            required: ['query'],
+            additionalProperties: false,
+          },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
+          execute: async (input: any) => {
+            if (
+              !input ||
+              typeof input.query !== 'string' ||
+              input.query.length > 200 ||
+              Object.keys(input).some(x => x !== 'query')
+            )
+              throw new Error('Query non valida');
+            const data = await api();
+            setQuery(input.query);
+            setTab('archive');
+            setRecords(data.records);
+            return data.records
+              .filter(
+                (x: Entry) =>
+                  x.kind === 'document' && x.data.title.toLowerCase().includes(input.query.toLowerCase()),
+              )
+              .map((x: Entry) => ({
+                id: x.id,
+                title: x.data.title,
+                category: x.data.category,
+                expires: x.data.expires,
+              }));
+          },
+        },
+        { signal: lifecycle.signal },
+      ),
+    ).catch(() => {});
+    return () => lifecycle.abort();
+  }, []);
+  async function action(body: any, message: string) {
+    setBusy(true);
+    try {
+      const result = await api(body);
+      await refresh();
+      toast.success(message);
+      return result;
+    } catch (e) {
+      toast.error((e as Error).message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function linkMany(c: any, docs: any[]) {
+    setBusy(true);
+    const successIds: string[] = [],
+      failures: any[] = [];
+    try {
+      for (const doc of docs) {
+        try {
+          await api({
+            action: 'update',
+            kind: 'document',
+            id: doc.id,
+            version: doc.updated,
+            data: prepareCatalogLink(doc.data, c.id, true),
+          });
+          successIds.push(doc.id);
+        } catch (e) {
+          failures.push({ id: doc.id, title: doc.data.title, error: (e as Error).message });
+        }
+      }
+      try {
+        await refresh();
+      } catch {
+        toast.error('Abbinamenti salvati: ricarica la pagina per aggiornare l’elenco.');
+      }
+      return { successIds, failures };
+    } finally {
+      setBusy(false);
+    }
+  }
+  function open(kind: string, entry: Entry | null = null) {
+    if (kind === 'document' && !entry) {
+      setImportOpen(true);
+      return;
+    }
+    setEditing(entry);
+    setFile(null);
+    setForm(
+      entry
+        ? { ...entry.data }
+        : { ...(kind === 'document' ? emptyDoc : kind === 'inspection' ? emptyInspection : emptyTask) },
+    );
+    setModal(kind);
+  }
+  async function saveForm(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      let data = { ...form };
+      if (modal === 'document' && file) {
+        const f = await upload(file);
+        data = { ...data, fileId: f.id, fileName: f.name };
+        setForm(data);
+        setFile(null);
+      }
+      if (modal === 'inspection' && !editing) data.started = new Date().toISOString();
+      const r = await api({
+        action: editing ? 'update' : 'create',
+        kind: modal,
+        id: editing?.id,
+        version: editing?.updated,
+        data,
+      });
+      await refresh();
+      if (modal === 'inspection') {
+        setSelected(r.id);
+        setTab('control');
+      }
+      setModal('');
+      toast.success('Salvato nell’archivio');
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function addEvent() {
+    if (!current || !question.trim()) return;
+    const result = await action(
+      {
+        action: 'create',
+        kind: 'event',
+        data: {
+          inspectionId: current.id,
+          speaker,
+          text: question,
+          tag,
+          offset: Math.max(0, Math.floor((Date.now() - Date.parse(current.data.started)) / 1000)),
+        },
+      },
+      'Annotazione aggiunta',
+    );
+    if (result) setQuestion('');
+  }
+  async function record() {
+    if (!current || !recordReady) return;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined')
+        throw new Error('Registrazione non supportata: puoi allegare un audio già acquisito.');
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.current = s;
+      const mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(x =>
+        MediaRecorder.isTypeSupported(x),
+      );
+      const r = new MediaRecorder(
+        s,
+        mime ? { mimeType: mime, audioBitsPerSecond: 64000 } : { audioBitsPerSecond: 64000 },
+      );
+      recorder.current = r;
+      let chunks: Blob[] = [];
+      let size = 0;
+      selectedRef.current = current.id;
+      r.ondataavailable = e => {
+        if (e.data.size) {
+          chunks.push(e.data);
+          size += e.data.size;
+          if (size > 18 * 1024 * 1024 && r.state === 'recording') {
+            r.stop();
+            toast.info('Raggiunto il limite del segmento. Salva questo audio prima di proseguire.');
+          }
+        }
+      };
+      r.onstop = () => {
+        s.getTracks().forEach(x => x.stop());
+        setRec(false);
+        const type = r.mimeType || 'audio/webm';
+        const ext = type.includes('mp4') ? 'm4a' : 'webm';
+        const captured = new File(
+          chunks,
+          ['controllo', new Date().toISOString().replace(/[:.]/g, '-')].join('-') + '.' + ext,
+          { type },
+        );
+        setAudio(captured);
+        chunks = [];
+        persistAudio(captured, selectedRef.current, current.data.started, recAt.current);
+      };
+      r.onerror = () => {
+        toast.error('Registrazione interrotta. Verifica l’audio recuperato.');
+        if (r.state === 'recording') r.stop();
+        s.getTracks().forEach(x => x.stop());
+        setRec(false);
+      };
+      recAt.current = Date.now();
+      setElapsed(0);
+      r.start(1000);
+      setRec(true);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+  async function persistAudio(captured: File, inspectionId: string, started: string, recordedAt: number) {
+    setBusy(true);
+    try {
+      const f = await upload(captured);
+      await api({
+        action: 'create',
+        kind: 'event',
+        data: {
+          inspectionId,
+          speaker: 'Audio del controllo',
+          text:
+            'Segmento audio originale. Inizio acquisizione: ' +
+            (recordedAt ? new Date(recordedAt).toISOString() : 'non rilevato, allegato esterno') +
+            '. Trascrizione da verificare.',
+          tag: 'Registrazione',
+          offset: Math.max(0, Math.floor(((recordedAt || Date.now()) - Date.parse(started)) / 1000)),
+          fileId: f.id,
+          fileName: f.name,
+        },
+      });
+      setAudio(null);
+      await refresh();
+      toast.success('Audio archiviato automaticamente');
+    } catch (e) {
+      toast.error((e as Error).message + ' L’audio resta disponibile: salva la copia locale.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveAudio() {
+    if (audio && current)
+      await persistAudio(audio, selectedRef.current || current.id, current.data.started, recAt.current);
+  }
 
- function exportReport(){if(!current)return;const text=['PRESIDIO — FASCICOLO DEL CONTROLLO',profile.name,`Ente: ${current.data.authority}`,`Oggetto: ${current.data.scope}`,`Interlocutori dichiarati: ${current.data.officers||'Non annotati'}`,`Riferimento: ${current.data.reference||'Non indicato'}`,`Inizio: ${current.data.started}`,`Stato: ${current.data.status}`,`Esito annotato: ${current.data.outcome||'Non annotato'}`,'','CRONOLOGIA — ANNOTAZIONI DELL’UTENTE',...events.map(x=>`${x.created} | ${x.data.speaker} | ${x.data.tag}\n${x.data.text}${x.data.fileId?'\nAllegato riservato: '+location.origin+'/api/files?id='+x.data.fileId:''}`),'','Questo fascicolo raccoglie annotazioni e allegati: non è un verbale dell’autorità, una perizia né un accertamento di responsabilità. Gli allegati originali vanno scaricati separatamente.'].join('\n\n');download(text,'fascicolo-'+current.id.slice(0,8)+'.txt','text/plain;charset=utf-8')}
- const navigation=[['overview','Situazione',ShieldCheck],['archive','Documenti',FolderOpen],['catalogue','Catalogo',BookOpen],['room','Accessi QR',Radio],['control','Controlli',ScanLine],['actions','Azioni',ClipboardList],['sources','Norme e progetto',BookOpen],['profile','Azienda',Building2]] as const;
- return <div className="presidio"><Toaster richColors position="bottom-right"/><header className="masthead"><a className="brand" href="/" aria-label="Presidio, pagina iniziale"><span className="brandmark"><ShieldCheck/></span><span>PRESIDIO<small>Il fascicolo della tua impresa</small></span></a><div className="header-right"><span><LockKeyhole size={15}/> Spazio riservato</span><div className="avatar" title={name}>{name.slice(0,1).toUpperCase()}</div><form method="post" action="/api/auth/logout" onSubmit={e=>{if((rec||audio)&&!window.confirm('Ci sono una registrazione o un audio non salvato. Vuoi uscire comunque?'))e.preventDefault()}}><button className="button secondary compact" type="submit">Esci</button></form></div></header>
- <Tabs value={tab} onValueChange={setTab} className="shell"><div className="navwrap"><TabsList className="navigation">{navigation.map(([id,title,Icon])=><TabsTrigger value={id} key={id}><Icon size={17}/>{title}</TabsTrigger>)}</TabsList><Badge tone="blue">Archivio e controllo</Badge></div>
- <main className="workspace">{liveVisits.length>0&&<button className="livealert" onClick={()=>setTab('room')}><span className="livedot"/><strong>QR IN USO · {liveVisits.length} {liveVisits.length===1?'sessione':'sessioni'}</strong><span>Apri il controllo in diretta →</span></button>}{rec&&<div className="notice error" role="status"><strong>Microfono attivo · {Math.floor(elapsed/60)} min {elapsed%60} s</strong><button onClick={()=>recorder.current?.stop()}>Ferma registrazione</button></div>}<div className="companyline"><span>{profile.name}</span><span>{profile.city} · {profile.region}</span></div>
- {error&&<div className="notice error" role="alert">{error}<button onClick={()=>refresh(true).catch(()=>{})}>Riprova</button></div>}
- {loading?<div className="loading">Apertura del tuo archivio…</div>:<>
- <TabsContent value="overview"><div className="pageheading"><div><p className="eyebrow">PRIMA, DURANTE E DOPO UN CONTROLLO</p><h1>Ogni documento.<br/><span>Al momento giusto.</span></h1></div><button className="button primary" onClick={()=>open('inspection')}><ScanLine size={18}/>Avvia un controllo</button></div>
- <section className="panel"><div className="sectionhead"><div><h2>Prepara i documenti per il controllo</h2><p className="muted">Valuta le voci pertinenti, abbina gli originali e crea un’azione per ciò che devi reperire.</p></div><button type="button" className="button secondary" onClick={()=>setTab('catalogue')}>Apri catalogo</button></div></section>
- <div className="metrics"><div><FolderOpen/><strong>{documents.length}</strong><span>documenti archiviati</span></div><div><CalendarDays/><strong>{documents.filter(x=>{const d=dayDiff(x.data.expires);return d!==null&&d<=30}).length}</strong><span>date da riesaminare</span></div><div><ScanLine/><strong>{inspections.filter(x=>x.data.status==='aperto').length}</strong><span>controlli aperti</span></div><div><ClipboardList/><strong>{tasks.filter(x=>!x.data.done).length}</strong><span>azioni da completare</span></div></div>
- <div className="twocol"><section className="panel"><div className="sectionhead"><h2>Da portare all’attenzione</h2><Badge tone="amber">{findings.length} verifiche</Badge></div><p className="muted">Controlli sui dati inseriti. Non certificano la conformità dell’impresa.</p><div className="findings">{findings.length?findings.map((x,i)=><button key={i} className="finding" onClick={()=>setTab(x.target)}><span className={'findingicon '+x.tone}><AlertTriangle size={18}/></span><span><strong>{x.title}</strong><small>{x.detail}</small></span><ChevronRight size={18}/></button>):<div className="empty"><Check/><h3>Nessuna anomalia nei confronti disponibili</h3><p>Il controllo copre solo i campi censiti. La validità giuridica richiede verifica.</p></div>}</div></section>
- <section className="panel darkpanel"><p className="eyebrow">LA TUA POSTAZIONE DI ASSISTENZA</p><h2>Quando arriva<br/>un controllo,<br/>apri il fascicolo.</h2><p>Richieste, documenti e annotazioni nella stessa schermata. Una cronologia ordinata da rileggere con il professionista.</p><button className="button light" onClick={()=>setTab('control')}>Apri la postazione <ArrowUpRight size={17}/></button><div className="darkfoot"><LockKeyhole size={15}/> L’archivio resta riservato.</div></section></div>
- <section className="panel recentinspections"><div className="sectionhead"><h2>Ultimi controlli</h2><button className="textbutton" onClick={()=>setTab('control')}>Storico completo</button></div>{inspections.slice(0,5).map(x=><button className="finding" key={x.id} onClick={()=>{if(rec||audio){toast.info('Archivia prima l’audio in corso.');return}setSelected(x.id);setTab('control')}}><ScanLine size={20}/><span><strong>{x.data.authority}</strong><small>{fmt(x.created)} · {x.data.scope}</small></span><Badge>{x.data.status}</Badge></button>)}{!inspections.length&&<p className="muted">I controlli manuali e le sessioni QR autorizzate compariranno qui.</p>}</section>
- <div className="lowergrid"><section className="panel"><div className="sectionhead"><h2>Costruisci il tuo fascicolo</h2><button className="textbutton" onClick={()=>open('document')}>Aggiungi <Plus size={16}/></button></div><div className="categorygrid">{categories.slice(0,6).map(c=><button key={c} onClick={()=>{setFilter(c);setTab('archive')}}><FolderOpen size={20}/><span>{c}</span><strong>{documents.filter(x=>x.data.category===c).length}</strong></button>)}</div></section><section className="panel"><h2>Il prossimo passo concreto</h2><p className="muted">Carica i documenti originali, completa intestazione e sede, poi assegna le verifiche a un referente.</p><button className="button secondary" onClick={()=>open('task')}>Crea un’azione <Plus size={16}/></button><p className="smallnote">Notifiche esterne e sorveglianza automatica delle norme non sono ancora attive.</p></section></div>
- </TabsContent>
- <TabsContent value="catalogue"><CataloguePanel onRefresh={refresh} onLinkMany={linkMany} records={records} profile={profile} busy={busy} onEdit={doc=>open('document',doc)} onLink={(c,doc,add)=>action({action:'update',kind:'document',id:doc.id,version:doc.updated,data:prepareCatalogLink(doc.data,c.id,add)},add?'Documento abbinato':'Abbinamento rimosso')} onTask={c=>{setEditing(null);setForm({...emptyTask,title:('Verificare / reperire: '+c.title).slice(0,200),notes:c.condition+'\n'+c.source});setModal('task')}} onAdd={c=>{setEditing(null);setFile(null);setForm({...emptyDoc,title:c.title,category:categories.includes(c.category)?c.category:'Altro',catalogId:c.id,catalogIds:[c.id],priority:c.priority,publicDescription:c.description,notes:'Applicabilità da verificare: '+c.condition+'\nRiferimento di area: '+c.source});setModal('document')}} onSave={(c,status,notes,old)=>action({action:old?'update':'create',kind:'requirement',id:old?.id,version:old?.updated,data:{catalogId:c.id,status,notes,reviewer:name}},'Valutazione salvata')}/></TabsContent>
- <TabsContent value="room"><ControlRoom room={room} documents={documents} onInspection={async id=>{if(rec||audio){toast.info('Ferma e archivia l’audio prima di cambiare fascicolo.');return}await refresh();setSelected(id);setTab('control')}}/></TabsContent>
- <TabsContent value="archive"><div className="sectiontitle"><div><p className="eyebrow">ARCHIVIO RISERVATO</p><h1>Documenti</h1><p>Originali, riferimenti e date da riesaminare.</p></div><button className="button primary" onClick={()=>open('document')}><Plus size={18}/>Carica documenti / cartella</button></div><div className="toolbar"><div className="searchbox"><Search size={18}/><input aria-label="Cerca un documento" placeholder="Titolo, protocollo o note…" value={query} onChange={e=>setQuery(e.target.value)}/></div><Pick value={filter} onChange={setFilter} options={['Tutte',...categories]}/></div>
- <div className="documentgrid">{documents.filter(x=>(filter==='Tutte'||x.data.category===filter)&&[x.data.title,x.data.notes,x.data.protocol,x.data.holder,x.data.issuer,x.data.documentType].join(' ').toLowerCase().includes(query.toLowerCase())).map(x=><article className="documentcard" key={x.id}><div className="sectionhead"><span className="fileicon"><FileText/></span><Badge tone={docState(x.data).tone}>{docState(x.data).text}</Badge></div><p className="eyebrow">{x.data.category}</p><h3>{x.data.title}</h3><p className="muted">{x.data.protocol||'Protocollo non indicato'}</p><div className="docdate"><Clock size={15}/>Data da riesaminare: {fmt(x.data.expires)}</div><div className="cardactions"><button className="textbutton" onClick={()=>open('document',x)}>Scheda <ChevronRight size={15}/></button>{x.data.fileId?<a href={'/api/files?id='+x.data.fileId} target="_blank" rel="noreferrer" className="button secondary compact">Apri originale <ExternalLink size={14}/></a>:<Badge>Allegato assente</Badge>}</div></article>)}</div>
- {!documents.length&&<div className="panel empty"><FolderOpen/><h2>Il tuo archivio parte dagli originali</h2><p>Carica una cartella, PDF o fotografie: il sistema propone categoria e dati da confermare.</p><button className="button secondary" onClick={()=>open('document')}>Carica il primo documento</button></div>}<p className="smallnote">“Verifica annotata” indica una verifica dichiarata dall’utente, non una validazione automatica. Nessuna data inserita non significa validità illimitata.</p>
- </TabsContent>
- <TabsContent value="control"><div className="sectiontitle"><div><p className="eyebrow">ASSISTENZA AL CONTROLLO</p><h1>La postazione</h1><p>Annota con precisione. Richiama i documenti. Mantieni il contesto.</p></div><div className="row"><button className="button secondary" onClick={()=>setTab('room')}><ScanLine size={18}/>QR di accesso</button><button className="button primary" disabled={rec||!!audio} onClick={()=>open('inspection')}><Plus size={18}/>Nuovo controllo</button></div></div>
- {inspections.length>0&&<div className="inspectionpicker"><span>Fascicolo</span><Select value={selected||undefined} disabled={rec||!!audio} onValueChange={setSelected}><SelectTrigger><SelectValue placeholder="Scegli un controllo"/></SelectTrigger><SelectContent>{inspections.map(x=><SelectItem key={x.id} value={x.id}>{fmt(x.created)} · {x.data.authority} · {x.data.status}</SelectItem>)}</SelectContent></Select></div>}
- {!current?<div className="panel empty"><ScanLine/><h2>{inspections.length?'Scegli il fascicolo da aprire':'Nessun controllo registrato'}</h2><p>Il modulo raccoglie ente, oggetto, interlocutori e riferimenti. Può compilarlo il responsabile anche se i controllori non usano il QR.</p><button className="button primary" onClick={()=>open('inspection')}>Registra l’inizio del controllo</button></div>:<>
- <div className="sessionbar"><div><Badge tone={current.data.status==='aperto'?'blue':'gray'}>{current.data.status==='aperto'?'Fascicolo aperto':'Fascicolo concluso'}</Badge><h2>{current.data.authority}</h2><p>{current.data.scope} · {fmt(current.data.started)}</p></div><div className="row"><button className="button secondary" onClick={exportReport}><Download size={16}/>Esporta cronologia</button><button className="button secondary" disabled={rec||!!audio} onClick={()=>open('inspection',current)}>Dati ed esito</button></div></div>
- <div className="controlgrid"><section className="panel"><div className="sectionhead"><h2>Richiesta e risposta</h2><Badge>Supporto guidato</Badge></div><p className="muted">Formule operative e ricerca per categoria. Queste frasi sono modelli organizzativi; non sono risposte generate dall’ascolto.</p>
- <Field label="Che cosa è stato chiesto o detto?"><textarea rows={4} value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Es. Ci mostri la documentazione relativa all’agibilità…" maxLength={4000} disabled={current.data.status!=='aperto'}/></Field>
- <div className="formgrid"><Field label="Interlocutore (assegnazione manuale)"><input value={speaker} onChange={e=>setSpeaker(e.target.value)} maxLength={200}/></Field><Field label="Tipo di annotazione"><Pick value={tag} onChange={setTag} options={['Richiesta','Nota','Da verificare','Documento esibito']}/></Field></div>
- {question.trim()&&<div className="responsecard"><p className="eyebrow">FORMULA DA ADATTARE</p><blockquote>{suggestion.response}</blockquote><p>{suggestion.note}</p></div>}
- <button className="button primary full" disabled={busy||!question.trim()||current.data.status!=='aperto'} onClick={addEvent}><Plus size={17}/>Aggiungi alla cronologia</button>
- <div className="linkedfiles"><h3>Documenti richiamati {suggestion.category&&<small>· {suggestion.category}</small>}</h3>{question.trim()?(suggestion.docs.length?suggestion.docs.map(x=><div className="linkedfile" key={x.id}><FileText size={22}/><span>{x.data.title}<small>{docState(x.data).text}</small></span>{x.data.fileId?<a href={'/api/files?id='+x.data.fileId} target="_blank" rel="noreferrer" aria-label={'Apri '+x.data.title}><ExternalLink size={18}/></a>:<span className="muted">Solo scheda</span>}</div>):<p className="muted">Nessun documento corrispondente. Non dichiararlo disponibile finché non è stato individuato.</p>):<p className="muted">Scrivi una richiesta per richiamare la categoria pertinente.</p>}</div>
- </section><section className="panel timelinepanel"><div className="sectionhead"><h2>Cronologia</h2><Badge>{events.length} annotazioni</Badge></div><p className="smallnote">Orari di archiviazione · fuso Europe/Rome. Le note non sono il verbale dell’autorità.</p><div className="timeline">{events.map(x=><article key={x.id}><div className="timelinehead"><time>{time(x.created)}</time><Badge tone={x.data.tag==='Da verificare'?'amber':'gray'}>{x.data.tag}</Badge></div><strong>{x.data.speaker||'Interlocutore non indicato'}</strong><p>{x.data.text}</p>{x.data.fileId&&<><audio controls preload="none" src={'/api/files?id='+x.data.fileId}/><a className="textbutton" href={'/api/files?id='+x.data.fileId} target="_blank" rel="noreferrer">Apri audio <ExternalLink size={14}/></a></>}</article>)}{!events.length&&<div className="empty"><Clock/><p>Le annotazioni compariranno qui in ordine cronologico.</p></div>}</div></section></div>
- <section className="panel audiopanel"><div><div className="sectionhead"><h2><Headphones size={20}/> Audio del controllo</h2><Badge tone={rec?'red':'gray'}>{rec?'Registrazione in corso':'Attivazione manuale'}</Badge></div><p className="muted">Registra dal microfono di questo dispositivo mentre partecipi al colloquio. Audio riservato al titolare; il portale dei controllori non vi accede. La proprietà del locale e la compilazione del QR non sostituiscono la verifica delle condizioni di registrazione e trattamento.</p><label className="checkrow"><Checkbox checked={recordReady} onCheckedChange={v=>setRecordReady(v===true)} disabled={rec}/><span>Partecipo al colloquio e limito la registrazione a questa sessione per documentare il controllo e tutelare i miei diritti.</span></label><p className="smallnote">Il browser deve restare aperto. Nessuna registrazione in background garantita. Al termine il segmento viene archiviato automaticamente. Se l’invio fallisce, conserva la copia locale prima di uscire.</p></div><div className="audioactions">{rec?<><strong className="timer">{Math.floor(elapsed/60).toString().padStart(2,'0')}:{(elapsed%60).toString().padStart(2,'0')}</strong><button className="button danger" onClick={()=>recorder.current?.stop()}><Square size={16}/>Ferma</button></>:<button className="button secondary" disabled={!recordReady||!!audio||busy||current.data.status!=='aperto'} onClick={record}><Mic size={17}/>Avvia registrazione</button>}{audio&&<><audio controls src={audioUrl}/><button className="button primary" disabled={busy} onClick={saveAudio}><Save size={16}/>Archivia audio</button><a className="textbutton" href={audioUrl} download={audio.name}>Scarica copia locale</a></>}{!rec&&!audio&&current.data.status==='aperto'&&<label className="uploadlink">Allega audio esistente<input type="file" accept="audio/*" onChange={e=>{const f=e.target.files?.[0];if(f){if(f.size>20*1024*1024){toast.error('Massimo 20 MB');return}selectedRef.current=current.id;recAt.current=0;setAudio(f)}}}/></label>}</div></section>
- <AiPanel records={records} inspectionId={current.id} ready={!!room.data?.aiReady} onRefresh={()=>refresh()}/>
- </>}
- </TabsContent>
- <TabsContent value="actions"><div className="sectiontitle"><div><p className="eyebrow">DALLA VERIFICA ALL’AZIONE</p><h1>Un passo alla volta.</h1><p>Un responsabile, una data e un risultato per ogni attività.</p></div><button className="button primary" onClick={()=>open('task')}><Plus size={17}/>Nuova azione</button></div><div className="tasklist">{tasks.map(x=><article className="panel task" key={x.id}><Checkbox aria-label={'Completa '+x.data.title} checked={x.data.done} disabled={busy} onCheckedChange={v=>action({action:'update',kind:'task',id:x.id,version:x.updated,data:{...x.data,done:v===true}},'Azione aggiornata')}/><div><h3 className={x.data.done?'completed':''}>{x.data.title}</h3><p>{x.data.responsible||'Responsabile da assegnare'} · {fmt(x.data.due)}</p>{x.data.notes&&<p className="muted">{x.data.notes}</p>}</div><Badge tone={x.data.done?'blue':dayDiff(x.data.due)!==null&&dayDiff(x.data.due)!<0?'red':'gray'}>{x.data.done?'Completata':'Da fare'}</Badge><button className="textbutton" onClick={()=>open('task',x)}>Modifica</button></article>)}</div>{!tasks.length&&<div className="panel empty"><ClipboardList/><h2>Trasforma i dubbi in attività concrete</h2><p>Per esempio: reperire un originale, confrontare una planimetria o far verificare un titolo al tecnico.</p><button className="button secondary" onClick={()=>open('task')}>Crea la prima azione</button></div>}</TabsContent>
- <TabsContent value="sources"><CatalogueSources/><div className="sectiontitle"><div><p className="eyebrow">FONTI E SVILUPPO</p><h1>La norma, nel suo contesto.</h1><p>Territorio, periodo, attività e documento devono coincidere.</p></div><Badge tone="amber">Monitoraggio automatico non attivo</Badge></div><div className="notice"><BookOpen size={22}/><div><strong>Questa versione è un archivio operativo.</strong><p>I collegamenti seguenti sono punti di consultazione. Non costituiscono una banca dati esaustiva né una verifica legale aggiornata della tua impresa.</p></div></div><div className="sourcegrid">{sources.map(x=><a className="panel sourcecard" key={x.title} href={x.url} target="_blank" rel="noreferrer"><div className="sectionhead"><p className="eyebrow">{x.scope}</p><ArrowUpRight size={18}/></div><h3>{x.title}</h3><p>{x.use}</p></a>)}</div>
- <section className="panel projectpanel"><p className="eyebrow">PROGETTO COMPLETO</p><h2>Una tutela costruita su elementi verificabili</h2><div className="projectgrid"><article><span>01</span><h3>Archivio e identità</h3><Badge tone="blue">Disponibile</Badge><p>Allegati riservati, metadati, date, confronti di partita IVA e sede, attività assegnate e fascicoli esportabili.</p></article><article><span>02</span><h3>QR per i controllori</h3><Badge tone="blue">Disponibile</Badge><p>Modulo separato, dati dichiarati obbligatori per l’accesso al portale, autorizzazione del titolare, documenti selezionati, ricerche e cronologia. Rimane disponibile l’esibizione assistita.</p></article><article><span>03</span><h3>Catalogo documentale e fonti</h3><Badge>Disponibile</Badge><p>Ricerca per area, abbinamenti con gli originali, applicabilità annotata e riferimenti ufficiali. Il monitoraggio normativo continuo e la verifica legale automatica non sono attivi.</p></article><article><span>04</span><h3>Assistente durante il controllo</h3><Badge>Da integrare e validare</Badge><p>Trascrizione con tempi e interlocutori, domande estratte, risposta breve fondata su fonti e documenti. Identità assegnate manualmente, senza riconoscimento biometrico.</p></article><article><span>05</span><h3>Passaggi da esaminare</h3><Badge>Da validare con il legale</Badge><p>Distinguere fatto, dichiarazione, contraddizione e ipotesi. Citare il passaggio e il contesto, senza attribuire automaticamente reati né valutare menzogne dalla voce.</p></article><article><span>06</span><h3>Conservazione e diffusione</h3><Badge>Prima dell’uso su larga scala</Badge><p>Ruoli, separazione tra imprese, tempi di conservazione, cancellazione, backup, gestione incidenti e valutazione d’impatto ove necessaria. Nessuna diffusione pubblica degli audio.</p></article></div></section>
- <section className="panel"><h2>Come dovrà funzionare il motore normativo</h2><div className="ruleflow"><span>Fonte ufficiale</span><ChevronRight/><span>Versione e periodo</span><ChevronRight/><span>Territorio e attività</span><ChevronRight/><span>Dati dell’impresa</span><ChevronRight/><span>Verifica motivata</span></div><p className="muted">Ogni rilievo dovrà indicare articolo, testo pertinente, data dell’ultima verifica, fatti aziendali utilizzati, condizioni di applicabilità e azione proposta. In assenza di elementi sufficienti: “Non determinabile”.</p><p className="smallnote">Un nuovo articolo online non diventa automaticamente un nuovo obbligo. Una proposta di legge resta distinta da una norma vigente. Le interpretazioni e le sentenze vanno distinte dal testo normativo.</p></section>
- </TabsContent>
- <TabsContent value="profile"><div className="sectiontitle"><div><p className="eyebrow">IDENTITÀ E PERIMETRO</p><h1>La tua azienda</h1><p>Completa i dati attuali, verificandoli sui documenti originali.</p></div><Badge>Una sede · accesso del titolare</Badge></div><form className="panel profileform" onSubmit={async e=>{e.preventDefault();await action({action:'profile',data:draftProfile},'Profilo aziendale aggiornato')}}><div className="formgrid">{([['name','Nome commerciale'],['legalName','Ragione sociale attuale'],['vat','Partita IVA'],['address','Indirizzo della sede'],['city','Comune'],['region','Regione'],['activity','Attività svolta'],['reviewer','Referente tecnico o legale']] as const).map(([key,label])=><Field key={key} label={label}><input required={key==='name'} maxLength={key==='address'?300:key==='vat'?30:200} value={draftProfile[key]} onChange={e=>setDraftProfile({...draftProfile,[key]:e.target.value})}/></Field>)}<Field label="Sono presenti lavoratori?"><Pick value={draftProfile.staff} options={['Sì','No','Da confermare']} onChange={v=>setDraftProfile({...draftProfile,staff:v})}/></Field><Field label="È presente un dehors?"><Pick value={draftProfile.dehors} options={['Sì','No','Da confermare']} onChange={v=>setDraftProfile({...draftProfile,dehors:v})}/></Field></div><Field label="Informativa per il portale dei controlli"><textarea rows={8} maxLength={12000} value={draftProfile.portalNotice||''} onChange={e=>setDraftProfile({...draftProfile,portalNotice:e.target.value})} placeholder="Inserisci l’informativa dell’attività: titolare e contatti; dati e finalità; basi giuridiche; fornitori/destinatari ed eventuali trasferimenti; tempi o criteri di conservazione; diritti e modalità di esercizio; reclamo al Garante; campi necessari e modalità alternativa di esibizione. La presa visione non equivale a un consenso generale."/></Field><div className="formfooter"><p className="muted">I confronti usano i campi inseriti; non consultano registri pubblici.</p><button className="button primary" disabled={busy}><Save size={17}/>Salva profilo</button></div></form><div className="panel"><h2>Esporta i tuoi dati</h2><p className="muted">Copia in formato JSON di profilo, schede e cronologie. I file originali si scaricano dalle rispettive schede.</p><button className="button secondary" onClick={()=>download(JSON.stringify({exportedAt:new Date().toISOString(),profile,records},null,2),'presidio-archivio.json')}><Download size={16}/>Esporta schede e cronologie</button></div></TabsContent>
- </>}
- <footer className="footer"><span>PRESIDIO <span>·</span> Archivio e assistenza organizzativa</span><span>Valutazioni legali affidate al professionista</span></footer>
- </main></Tabs>
- <DocumentImporter open={importOpen} onClose={()=>setImportOpen(false)} onSaved={()=>refresh()}/>
- <Dialog open={!!modal} onOpenChange={v=>{if(!v&&!busy)setModal('')}}><DialogContent className="presidio-dialog"><DialogTitle>{modal==='document'?(editing?'Modifica scheda':'Aggiungi un documento'):modal==='inspection'?(editing?'Dati ed esito del controllo':'Inizia il fascicolo'):modal==='task'?(editing?'Modifica azione':'Nuova azione'):'QR per il controllo'}</DialogTitle><DialogDescription>{modal==='qr'?'Accesso dei controllori ai documenti autorizzati.':modal==='inspection'?'Annota i dati dichiarati. L’identità degli interlocutori si verifica separatamente.':'I campi vengono salvati nel tuo spazio riservato.'}</DialogDescription>
- {modal==='qr'?<div className="qrmodal"><img src="/accesso-qr.svg" width={224} height={224} alt="QR per aprire la postazione di Presidio"/><h3>Il portale dei documenti.</h3><p>Attiva il portale nella sezione Accessi QR e autorizza gli originali pertinenti a ogni sessione.</p><button className="button secondary" onClick={()=>{navigator.clipboard.writeText(location.origin+'/accesso').then(()=>toast.success('Link copiato')).catch(()=>toast.error('Copia il link dalla barra del browser'))}}>Copia il collegamento</button></div>:<form onSubmit={saveForm}>
- {modal==='document'&&<DocumentEditor value={form} onChange={setForm} busy={busy} onBusy={setBusy}/>}
- {modal==='inspection'&&<><Field label="Ente / ufficio *"><input required maxLength={200} placeholder="Es. ASP, Polizia municipale, Ispettorato…" value={form.authority||''} onChange={e=>setForm({...form,authority:e.target.value})}/></Field><Field label="Oggetto dichiarato del controllo *"><input required maxLength={200} value={form.scope||''} onChange={e=>setForm({...form,scope:e.target.value})}/></Field><Field label="Nomi e qualifiche dichiarati"><textarea maxLength={1000} rows={2} value={form.officers||''} onChange={e=>setForm({...form,officers:e.target.value})}/></Field><Field label="Riferimento / protocollo"><input maxLength={200} value={form.reference||''} onChange={e=>setForm({...form,reference:e.target.value})}/></Field>{editing&&<><Field label="Stato del fascicolo"><Pick value={form.status||'aperto'} options={['aperto','concluso']} onChange={v=>setForm({...form,status:v,ended:v==='concluso'?new Date().toISOString():''})}/></Field><Field label="Esito e prossime attività (annotazione del responsabile)"><textarea rows={4} maxLength={4000} value={form.outcome||''} onChange={e=>setForm({...form,outcome:e.target.value})}/></Field></>}<p className="smallnote">Il modulo può essere compilato dal responsabile. Non presume obblighi dei controllori di registrarsi o usare il QR.</p></>}
- {modal==='task'&&<><Field label="Che cosa occorre fare? *"><input required maxLength={200} value={form.title||''} onChange={e=>setForm({...form,title:e.target.value})}/></Field><Field label="Responsabile"><input maxLength={200} value={form.responsible||''} onChange={e=>setForm({...form,responsible:e.target.value})}/></Field><Field label="Data concordata"><input type="date" value={form.due||''} onChange={e=>setForm({...form,due:e.target.value})}/></Field><Field label="Istruzioni e risultato atteso"><textarea maxLength={4000} rows={4} value={form.notes||''} onChange={e=>setForm({...form,notes:e.target.value})}/></Field></>}
- <div className="formfooter"><button type="button" className="button secondary" disabled={busy} onClick={()=>setModal('')}>Annulla</button><button className="button primary" disabled={busy}><Save size={16}/>{busy?'Salvataggio…':'Salva'}</button></div></form>}
- </DialogContent></Dialog>
- </div>
+  function exportReport() {
+    if (!current) return;
+    const text = [
+      'PRESIDIO — FASCICOLO DEL CONTROLLO',
+      profile.name,
+      `Ente: ${current.data.authority}`,
+      `Oggetto: ${current.data.scope}`,
+      `Interlocutori dichiarati: ${current.data.officers || 'Non annotati'}`,
+      `Riferimento: ${current.data.reference || 'Non indicato'}`,
+      `Inizio: ${current.data.started}`,
+      `Stato: ${current.data.status}`,
+      `Esito annotato: ${current.data.outcome || 'Non annotato'}`,
+      '',
+      'CRONOLOGIA — ANNOTAZIONI DELL’UTENTE',
+      ...events.map(
+        x =>
+          `${x.created} | ${x.data.speaker} | ${x.data.tag}\n${x.data.text}${x.data.fileId ? '\nAllegato riservato: ' + location.origin + '/api/files?id=' + x.data.fileId : ''}`,
+      ),
+      '',
+      'Questo fascicolo raccoglie annotazioni e allegati: non è un verbale dell’autorità, una perizia né un accertamento di responsabilità. Gli allegati originali vanno scaricati separatamente.',
+    ].join('\n\n');
+    download(text, 'fascicolo-' + current.id.slice(0, 8) + '.txt', 'text/plain;charset=utf-8');
+  }
+  const navigation = [
+    ['overview', 'Situazione', ShieldCheck],
+    ['archive', 'Documenti', FolderOpen],
+    ['catalogue', 'Catalogo', BookOpen],
+    ['room', 'Accessi QR', Radio],
+    ['control', 'Controlli', ScanLine],
+    ['actions', 'Azioni', ClipboardList],
+    ['sources', 'Norme e progetto', BookOpen],
+    ['profile', 'Azienda', Building2],
+  ] as const;
+  return (
+    <div className="presidio">
+      <Toaster richColors position="bottom-right" />
+      <header className="masthead">
+        <a className="brand" href="/" aria-label="Presidio, pagina iniziale">
+          <span className="brandmark">
+            <ShieldCheck />
+          </span>
+          <span>
+            PRESIDIO<small>Il fascicolo della tua impresa</small>
+          </span>
+        </a>
+        <div className="header-right">
+          <span>
+            <LockKeyhole size={15} /> Spazio riservato
+          </span>
+          <div className="avatar" title={name}>
+            {name.slice(0, 1).toUpperCase()}
+          </div>
+          <form
+            method="post"
+            action="/api/auth/logout"
+            onSubmit={e => {
+              if (
+                (rec || audio) &&
+                !window.confirm('Ci sono una registrazione o un audio non salvato. Vuoi uscire comunque?')
+              )
+                e.preventDefault();
+            }}
+          >
+            <button className="button secondary compact" type="submit">
+              Esci
+            </button>
+          </form>
+        </div>
+      </header>
+      <Tabs value={tab} onValueChange={setTab} className="shell">
+        <div className="navwrap">
+          <TabsList className="navigation">
+            {navigation.map(([id, title, Icon]) => (
+              <TabsTrigger value={id} key={id}>
+                <Icon size={17} />
+                {title}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Badge tone="blue">Archivio e controllo</Badge>
+        </div>
+        <main className="workspace">
+          {liveVisits.length > 0 && (
+            <button className="livealert" onClick={() => setTab('room')}>
+              <span className="livedot" />
+              <strong>
+                QR IN USO · {liveVisits.length} {liveVisits.length === 1 ? 'sessione' : 'sessioni'}
+              </strong>
+              <span>Apri il controllo in diretta →</span>
+            </button>
+          )}
+          {rec && (
+            <div className="notice error" role="status">
+              <strong>
+                Microfono attivo · {Math.floor(elapsed / 60)} min {elapsed % 60} s
+              </strong>
+              <button onClick={() => recorder.current?.stop()}>Ferma registrazione</button>
+            </div>
+          )}
+          <div className="companyline">
+            <span>{profile.name}</span>
+            <span>
+              {profile.city} · {profile.region}
+            </span>
+          </div>
+          {error && (
+            <div className="notice error" role="alert">
+              {error}
+              <button onClick={() => refresh(true).catch(() => {})}>Riprova</button>
+            </div>
+          )}
+          {loading ? (
+            <div className="loading">Apertura del tuo archivio…</div>
+          ) : (
+            <>
+              <TabsContent value="overview">
+                <div className="pageheading">
+                  <div>
+                    <p className="eyebrow">PRIMA, DURANTE E DOPO UN CONTROLLO</p>
+                    <h1>
+                      Ogni documento.
+                      <br />
+                      <span>Al momento giusto.</span>
+                    </h1>
+                  </div>
+                  <button className="button primary" onClick={() => open('inspection')}>
+                    <ScanLine size={18} />
+                    Avvia un controllo
+                  </button>
+                </div>
+                <section className="panel">
+                  <div className="sectionhead">
+                    <div>
+                      <h2>Prepara i documenti per il controllo</h2>
+                      <p className="muted">
+                        Valuta le voci pertinenti, abbina gli originali e crea un’azione per ciò che devi
+                        reperire.
+                      </p>
+                    </div>
+                    <button type="button" className="button secondary" onClick={() => setTab('catalogue')}>
+                      Apri catalogo
+                    </button>
+                  </div>
+                </section>
+                <div className="metrics">
+                  <div>
+                    <FolderOpen />
+                    <strong>{documents.length}</strong>
+                    <span>documenti archiviati</span>
+                  </div>
+                  <div>
+                    <CalendarDays />
+                    <strong>
+                      {
+                        documents.filter(x => {
+                          const d = dayDiff(x.data.expires);
+                          return d !== null && d <= 30;
+                        }).length
+                      }
+                    </strong>
+                    <span>date da riesaminare</span>
+                  </div>
+                  <div>
+                    <ScanLine />
+                    <strong>{inspections.filter(x => x.data.status === 'aperto').length}</strong>
+                    <span>controlli aperti</span>
+                  </div>
+                  <div>
+                    <ClipboardList />
+                    <strong>{tasks.filter(x => !x.data.done).length}</strong>
+                    <span>azioni da completare</span>
+                  </div>
+                </div>
+                <div className="twocol">
+                  <section className="panel">
+                    <div className="sectionhead">
+                      <h2>Da portare all’attenzione</h2>
+                      <Badge tone="amber">{findings.length} verifiche</Badge>
+                    </div>
+                    <p className="muted">
+                      Controlli sui dati inseriti. Non certificano la conformità dell’impresa.
+                    </p>
+                    <div className="findings">
+                      {findings.length ? (
+                        findings.map((x, i) => (
+                          <button key={i} className="finding" onClick={() => setTab(x.target)}>
+                            <span className={'findingicon ' + x.tone}>
+                              <AlertTriangle size={18} />
+                            </span>
+                            <span>
+                              <strong>{x.title}</strong>
+                              <small>{x.detail}</small>
+                            </span>
+                            <ChevronRight size={18} />
+                          </button>
+                        ))
+                      ) : (
+                        <div className="empty">
+                          <Check />
+                          <h3>Nessuna anomalia nei confronti disponibili</h3>
+                          <p>
+                            Il controllo copre solo i campi censiti. La validità giuridica richiede verifica.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                  <section className="panel darkpanel">
+                    <p className="eyebrow">LA TUA POSTAZIONE DI ASSISTENZA</p>
+                    <h2>
+                      Quando arriva
+                      <br />
+                      un controllo,
+                      <br />
+                      apri il fascicolo.
+                    </h2>
+                    <p>
+                      Richieste, documenti e annotazioni nella stessa schermata. Una cronologia ordinata da
+                      rileggere con il professionista.
+                    </p>
+                    <button className="button light" onClick={() => setTab('control')}>
+                      Apri la postazione <ArrowUpRight size={17} />
+                    </button>
+                    <div className="darkfoot">
+                      <LockKeyhole size={15} /> L’archivio resta riservato.
+                    </div>
+                  </section>
+                </div>
+                <section className="panel recentinspections">
+                  <div className="sectionhead">
+                    <h2>Ultimi controlli</h2>
+                    <button className="textbutton" onClick={() => setTab('control')}>
+                      Storico completo
+                    </button>
+                  </div>
+                  {inspections.slice(0, 5).map(x => (
+                    <button
+                      className="finding"
+                      key={x.id}
+                      onClick={() => {
+                        if (rec || audio) {
+                          toast.info('Archivia prima l’audio in corso.');
+                          return;
+                        }
+                        setSelected(x.id);
+                        setTab('control');
+                      }}
+                    >
+                      <ScanLine size={20} />
+                      <span>
+                        <strong>{x.data.authority}</strong>
+                        <small>
+                          {fmt(x.created)} · {x.data.scope}
+                        </small>
+                      </span>
+                      <Badge>{x.data.status}</Badge>
+                    </button>
+                  ))}
+                  {!inspections.length && (
+                    <p className="muted">
+                      I controlli manuali e le sessioni QR autorizzate compariranno qui.
+                    </p>
+                  )}
+                </section>
+                <div className="lowergrid">
+                  <section className="panel">
+                    <div className="sectionhead">
+                      <h2>Costruisci il tuo fascicolo</h2>
+                      <button className="textbutton" onClick={() => open('document')}>
+                        Aggiungi <Plus size={16} />
+                      </button>
+                    </div>
+                    <div className="categorygrid">
+                      {categories.slice(0, 6).map(c => (
+                        <button
+                          key={c}
+                          onClick={() => {
+                            setFilter(c);
+                            setTab('archive');
+                          }}
+                        >
+                          <FolderOpen size={20} />
+                          <span>{c}</span>
+                          <strong>{documents.filter(x => x.data.category === c).length}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                  <section className="panel">
+                    <h2>Il prossimo passo concreto</h2>
+                    <p className="muted">
+                      Carica i documenti originali, completa intestazione e sede, poi assegna le verifiche a
+                      un referente.
+                    </p>
+                    <button className="button secondary" onClick={() => open('task')}>
+                      Crea un’azione <Plus size={16} />
+                    </button>
+                    <p className="smallnote">
+                      Notifiche esterne e sorveglianza automatica delle norme non sono ancora attive.
+                    </p>
+                  </section>
+                </div>
+              </TabsContent>
+              <TabsContent value="catalogue">
+                <CataloguePanel
+                  onRefresh={refresh}
+                  onLinkMany={linkMany}
+                  records={records}
+                  profile={profile}
+                  busy={busy}
+                  onEdit={doc => open('document', doc)}
+                  onLink={(c, doc, add) =>
+                    action(
+                      {
+                        action: 'update',
+                        kind: 'document',
+                        id: doc.id,
+                        version: doc.updated,
+                        data: prepareCatalogLink(doc.data, c.id, add),
+                      },
+                      add ? 'Documento abbinato' : 'Abbinamento rimosso',
+                    )
+                  }
+                  onTask={c => {
+                    setEditing(null);
+                    setForm({
+                      ...emptyTask,
+                      title: ('Verificare / reperire: ' + c.title).slice(0, 200),
+                      notes: c.condition + '\n' + c.source,
+                    });
+                    setModal('task');
+                  }}
+                  onAdd={c => {
+                    setEditing(null);
+                    setFile(null);
+                    setForm({
+                      ...emptyDoc,
+                      title: c.title,
+                      category: categories.includes(c.category) ? c.category : 'Altro',
+                      catalogId: c.id,
+                      catalogIds: [c.id],
+                      priority: c.priority,
+                      publicDescription: c.description,
+                      notes:
+                        'Applicabilità da verificare: ' + c.condition + '\nRiferimento di area: ' + c.source,
+                    });
+                    setModal('document');
+                  }}
+                  onSave={(c, status, notes, old) =>
+                    action(
+                      {
+                        action: old ? 'update' : 'create',
+                        kind: 'requirement',
+                        id: old?.id,
+                        version: old?.updated,
+                        data: { catalogId: c.id, status, notes, reviewer: name },
+                      },
+                      'Valutazione salvata',
+                    )
+                  }
+                />
+              </TabsContent>
+              <TabsContent value="room">
+                <ControlRoom
+                  room={room}
+                  documents={documents}
+                  onInspection={async id => {
+                    if (rec || audio) {
+                      toast.info('Ferma e archivia l’audio prima di cambiare fascicolo.');
+                      return;
+                    }
+                    await refresh();
+                    setSelected(id);
+                    setTab('control');
+                  }}
+                />
+              </TabsContent>
+              <TabsContent value="archive">
+                <div className="sectiontitle">
+                  <div>
+                    <p className="eyebrow">ARCHIVIO RISERVATO</p>
+                    <h1>Documenti</h1>
+                    <p>Originali, riferimenti e date da riesaminare.</p>
+                  </div>
+                  <button className="button primary" onClick={() => open('document')}>
+                    <Plus size={18} />
+                    Carica documenti / cartella
+                  </button>
+                </div>
+                <div className="toolbar">
+                  <div className="searchbox">
+                    <Search size={18} />
+                    <input
+                      aria-label="Cerca un documento"
+                      placeholder="Titolo, protocollo o note…"
+                      value={query}
+                      onChange={e => setQuery(e.target.value)}
+                    />
+                  </div>
+                  <Pick value={filter} onChange={setFilter} options={['Tutte', ...categories]} />
+                </div>
+                <div className="documentgrid">
+                  {documents
+                    .filter(
+                      x =>
+                        (filter === 'Tutte' || x.data.category === filter) &&
+                        [
+                          x.data.title,
+                          x.data.notes,
+                          x.data.protocol,
+                          x.data.holder,
+                          x.data.issuer,
+                          x.data.documentType,
+                        ]
+                          .join(' ')
+                          .toLowerCase()
+                          .includes(query.toLowerCase()),
+                    )
+                    .map(x => (
+                      <article className="documentcard" key={x.id}>
+                        <div className="sectionhead">
+                          <span className="fileicon">
+                            <FileText />
+                          </span>
+                          <Badge tone={docState(x.data).tone}>{docState(x.data).text}</Badge>
+                        </div>
+                        <p className="eyebrow">{x.data.category}</p>
+                        <h3>{x.data.title}</h3>
+                        <p className="muted">{x.data.protocol || 'Protocollo non indicato'}</p>
+                        <div className="docdate">
+                          <Clock size={15} />
+                          Data da riesaminare: {fmt(x.data.expires)}
+                        </div>
+                        <div className="cardactions">
+                          <button className="textbutton" onClick={() => open('document', x)}>
+                            Scheda <ChevronRight size={15} />
+                          </button>
+                          {x.data.fileId ? (
+                            <a
+                              href={'/api/files?id=' + x.data.fileId}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="button secondary compact"
+                            >
+                              Apri originale <ExternalLink size={14} />
+                            </a>
+                          ) : (
+                            <Badge>Allegato assente</Badge>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                </div>
+                {!documents.length && (
+                  <div className="panel empty">
+                    <FolderOpen />
+                    <h2>Il tuo archivio parte dagli originali</h2>
+                    <p>
+                      Carica una cartella, PDF o fotografie: il sistema propone categoria e dati da
+                      confermare.
+                    </p>
+                    <button className="button secondary" onClick={() => open('document')}>
+                      Carica il primo documento
+                    </button>
+                  </div>
+                )}
+                <p className="smallnote">
+                  “Verifica annotata” indica una verifica dichiarata dall’utente, non una validazione
+                  automatica. Nessuna data inserita non significa validità illimitata.
+                </p>
+              </TabsContent>
+              <TabsContent value="control">
+                <div className="sectiontitle">
+                  <div>
+                    <p className="eyebrow">ASSISTENZA AL CONTROLLO</p>
+                    <h1>La postazione</h1>
+                    <p>Annota con precisione. Richiama i documenti. Mantieni il contesto.</p>
+                  </div>
+                  <div className="row">
+                    <button className="button secondary" onClick={() => setTab('room')}>
+                      <ScanLine size={18} />
+                      QR di accesso
+                    </button>
+                    <button
+                      className="button primary"
+                      disabled={rec || !!audio}
+                      onClick={() => open('inspection')}
+                    >
+                      <Plus size={18} />
+                      Nuovo controllo
+                    </button>
+                  </div>
+                </div>
+                {inspections.length > 0 && (
+                  <div className="inspectionpicker">
+                    <span>Fascicolo</span>
+                    <Select
+                      value={selected || undefined}
+                      disabled={rec || !!audio}
+                      onValueChange={setSelected}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Scegli un controllo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inspections.map(x => (
+                          <SelectItem key={x.id} value={x.id}>
+                            {fmt(x.created)} · {x.data.authority} · {x.data.status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {!current ? (
+                  <div className="panel empty">
+                    <ScanLine />
+                    <h2>
+                      {inspections.length ? 'Scegli il fascicolo da aprire' : 'Nessun controllo registrato'}
+                    </h2>
+                    <p>
+                      Il modulo raccoglie ente, oggetto, interlocutori e riferimenti. Può compilarlo il
+                      responsabile anche se i controllori non usano il QR.
+                    </p>
+                    <button className="button primary" onClick={() => open('inspection')}>
+                      Registra l’inizio del controllo
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="sessionbar">
+                      <div>
+                        <Badge tone={current.data.status === 'aperto' ? 'blue' : 'gray'}>
+                          {current.data.status === 'aperto' ? 'Fascicolo aperto' : 'Fascicolo concluso'}
+                        </Badge>
+                        <h2>{current.data.authority}</h2>
+                        <p>
+                          {current.data.scope} · {fmt(current.data.started)}
+                        </p>
+                      </div>
+                      <div className="row">
+                        <button className="button secondary" onClick={exportReport}>
+                          <Download size={16} />
+                          Esporta cronologia
+                        </button>
+                        <button
+                          className="button secondary"
+                          disabled={rec || !!audio}
+                          onClick={() => open('inspection', current)}
+                        >
+                          Dati ed esito
+                        </button>
+                      </div>
+                    </div>
+                    <div className="controlgrid">
+                      <section className="panel">
+                        <div className="sectionhead">
+                          <h2>Richiesta e risposta</h2>
+                          <Badge>Supporto guidato</Badge>
+                        </div>
+                        <p className="muted">
+                          Formule operative e ricerca per categoria. Queste frasi sono modelli organizzativi;
+                          non sono risposte generate dall’ascolto.
+                        </p>
+                        <Field label="Che cosa è stato chiesto o detto?">
+                          <textarea
+                            rows={4}
+                            value={question}
+                            onChange={e => setQuestion(e.target.value)}
+                            placeholder="Es. Ci mostri la documentazione relativa all’agibilità…"
+                            maxLength={4000}
+                            disabled={current.data.status !== 'aperto'}
+                          />
+                        </Field>
+                        <div className="formgrid">
+                          <Field label="Interlocutore (assegnazione manuale)">
+                            <input
+                              value={speaker}
+                              onChange={e => setSpeaker(e.target.value)}
+                              maxLength={200}
+                            />
+                          </Field>
+                          <Field label="Tipo di annotazione">
+                            <Pick
+                              value={tag}
+                              onChange={setTag}
+                              options={['Richiesta', 'Nota', 'Da verificare', 'Documento esibito']}
+                            />
+                          </Field>
+                        </div>
+                        {question.trim() && (
+                          <div className="responsecard">
+                            <p className="eyebrow">FORMULA DA ADATTARE</p>
+                            <blockquote>{suggestion.response}</blockquote>
+                            <p>{suggestion.note}</p>
+                          </div>
+                        )}
+                        <button
+                          className="button primary full"
+                          disabled={busy || !question.trim() || current.data.status !== 'aperto'}
+                          onClick={addEvent}
+                        >
+                          <Plus size={17} />
+                          Aggiungi alla cronologia
+                        </button>
+                        <div className="linkedfiles">
+                          <h3>
+                            Documenti richiamati{' '}
+                            {suggestion.category && <small>· {suggestion.category}</small>}
+                          </h3>
+                          {question.trim() ? (
+                            suggestion.docs.length ? (
+                              suggestion.docs.map(x => (
+                                <div className="linkedfile" key={x.id}>
+                                  <FileText size={22} />
+                                  <span>
+                                    {x.data.title}
+                                    <small>{docState(x.data).text}</small>
+                                  </span>
+                                  {x.data.fileId ? (
+                                    <a
+                                      href={'/api/files?id=' + x.data.fileId}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      aria-label={'Apri ' + x.data.title}
+                                    >
+                                      <ExternalLink size={18} />
+                                    </a>
+                                  ) : (
+                                    <span className="muted">Solo scheda</span>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <p className="muted">
+                                Nessun documento corrispondente. Non dichiararlo disponibile finché non è
+                                stato individuato.
+                              </p>
+                            )
+                          ) : (
+                            <p className="muted">
+                              Scrivi una richiesta per richiamare la categoria pertinente.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                      <section className="panel timelinepanel">
+                        <div className="sectionhead">
+                          <h2>Cronologia</h2>
+                          <Badge>{events.length} annotazioni</Badge>
+                        </div>
+                        <p className="smallnote">
+                          Orari di archiviazione · fuso Europe/Rome. Le note non sono il verbale
+                          dell’autorità.
+                        </p>
+                        <div className="timeline">
+                          {events.map(x => (
+                            <article key={x.id}>
+                              <div className="timelinehead">
+                                <time>{time(x.created)}</time>
+                                <Badge tone={x.data.tag === 'Da verificare' ? 'amber' : 'gray'}>
+                                  {x.data.tag}
+                                </Badge>
+                              </div>
+                              <strong>{x.data.speaker || 'Interlocutore non indicato'}</strong>
+                              <p>{x.data.text}</p>
+                              {x.data.fileId && (
+                                <>
+                                  <audio controls preload="none" src={'/api/files?id=' + x.data.fileId} />
+                                  <a
+                                    className="textbutton"
+                                    href={'/api/files?id=' + x.data.fileId}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Apri audio <ExternalLink size={14} />
+                                  </a>
+                                </>
+                              )}
+                            </article>
+                          ))}
+                          {!events.length && (
+                            <div className="empty">
+                              <Clock />
+                              <p>Le annotazioni compariranno qui in ordine cronologico.</p>
+                            </div>
+                          )}
+                        </div>
+                      </section>
+                    </div>
+                    <section className="panel audiopanel">
+                      <div>
+                        <div className="sectionhead">
+                          <h2>
+                            <Headphones size={20} /> Audio del controllo
+                          </h2>
+                          <Badge tone={rec ? 'red' : 'gray'}>
+                            {rec ? 'Registrazione in corso' : 'Attivazione manuale'}
+                          </Badge>
+                        </div>
+                        <p className="muted">
+                          Registra dal microfono di questo dispositivo mentre partecipi al colloquio. Audio
+                          riservato al titolare; il portale dei controllori non vi accede. La proprietà del
+                          locale e la compilazione del QR non sostituiscono la verifica delle condizioni di
+                          registrazione e trattamento.
+                        </p>
+                        <label className="checkrow">
+                          <Checkbox
+                            checked={recordReady}
+                            onCheckedChange={v => setRecordReady(v === true)}
+                            disabled={rec}
+                          />
+                          <span>
+                            Partecipo al colloquio e limito la registrazione a questa sessione per documentare
+                            il controllo e tutelare i miei diritti.
+                          </span>
+                        </label>
+                        <p className="smallnote">
+                          Il browser deve restare aperto. Nessuna registrazione in background garantita. Al
+                          termine il segmento viene archiviato automaticamente. Se l’invio fallisce, conserva
+                          la copia locale prima di uscire.
+                        </p>
+                      </div>
+                      <div className="audioactions">
+                        {rec ? (
+                          <>
+                            <strong className="timer">
+                              {Math.floor(elapsed / 60)
+                                .toString()
+                                .padStart(2, '0')}
+                              :{(elapsed % 60).toString().padStart(2, '0')}
+                            </strong>
+                            <button className="button danger" onClick={() => recorder.current?.stop()}>
+                              <Square size={16} />
+                              Ferma
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="button secondary"
+                            disabled={!recordReady || !!audio || busy || current.data.status !== 'aperto'}
+                            onClick={record}
+                          >
+                            <Mic size={17} />
+                            Avvia registrazione
+                          </button>
+                        )}
+                        {audio && (
+                          <>
+                            <audio controls src={audioUrl} />
+                            <button className="button primary" disabled={busy} onClick={saveAudio}>
+                              <Save size={16} />
+                              Archivia audio
+                            </button>
+                            <a className="textbutton" href={audioUrl} download={audio.name}>
+                              Scarica copia locale
+                            </a>
+                          </>
+                        )}
+                        {!rec && !audio && current.data.status === 'aperto' && (
+                          <label className="uploadlink">
+                            Allega audio esistente
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) {
+                                  if (f.size > 20 * 1024 * 1024) {
+                                    toast.error('Massimo 20 MB');
+                                    return;
+                                  }
+                                  selectedRef.current = current.id;
+                                  recAt.current = 0;
+                                  setAudio(f);
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </section>
+                    <AiPanel
+                      records={records}
+                      inspectionId={current.id}
+                      ready={!!room.data?.aiReady}
+                      onRefresh={() => refresh()}
+                    />
+                  </>
+                )}
+              </TabsContent>
+              <TabsContent value="actions">
+                <div className="sectiontitle">
+                  <div>
+                    <p className="eyebrow">DALLA VERIFICA ALL’AZIONE</p>
+                    <h1>Un passo alla volta.</h1>
+                    <p>Un responsabile, una data e un risultato per ogni attività.</p>
+                  </div>
+                  <button className="button primary" onClick={() => open('task')}>
+                    <Plus size={17} />
+                    Nuova azione
+                  </button>
+                </div>
+                <div className="tasklist">
+                  {tasks.map(x => (
+                    <article className="panel task" key={x.id}>
+                      <Checkbox
+                        aria-label={'Completa ' + x.data.title}
+                        checked={x.data.done}
+                        disabled={busy}
+                        onCheckedChange={v =>
+                          action(
+                            {
+                              action: 'update',
+                              kind: 'task',
+                              id: x.id,
+                              version: x.updated,
+                              data: { ...x.data, done: v === true },
+                            },
+                            'Azione aggiornata',
+                          )
+                        }
+                      />
+                      <div>
+                        <h3 className={x.data.done ? 'completed' : ''}>{x.data.title}</h3>
+                        <p>
+                          {x.data.responsible || 'Responsabile da assegnare'} · {fmt(x.data.due)}
+                        </p>
+                        {x.data.notes && <p className="muted">{x.data.notes}</p>}
+                      </div>
+                      <Badge
+                        tone={
+                          x.data.done
+                            ? 'blue'
+                            : dayDiff(x.data.due) !== null && dayDiff(x.data.due)! < 0
+                              ? 'red'
+                              : 'gray'
+                        }
+                      >
+                        {x.data.done ? 'Completata' : 'Da fare'}
+                      </Badge>
+                      <button className="textbutton" onClick={() => open('task', x)}>
+                        Modifica
+                      </button>
+                    </article>
+                  ))}
+                </div>
+                {!tasks.length && (
+                  <div className="panel empty">
+                    <ClipboardList />
+                    <h2>Trasforma i dubbi in attività concrete</h2>
+                    <p>
+                      Per esempio: reperire un originale, confrontare una planimetria o far verificare un
+                      titolo al tecnico.
+                    </p>
+                    <button className="button secondary" onClick={() => open('task')}>
+                      Crea la prima azione
+                    </button>
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="sources">
+                <CatalogueSources />
+                <div className="sectiontitle">
+                  <div>
+                    <p className="eyebrow">FONTI E SVILUPPO</p>
+                    <h1>La norma, nel suo contesto.</h1>
+                    <p>Territorio, periodo, attività e documento devono coincidere.</p>
+                  </div>
+                  <Badge tone="amber">Monitoraggio automatico non attivo</Badge>
+                </div>
+                <div className="notice">
+                  <BookOpen size={22} />
+                  <div>
+                    <strong>Questa versione è un archivio operativo.</strong>
+                    <p>
+                      I collegamenti seguenti sono punti di consultazione. Non costituiscono una banca dati
+                      esaustiva né una verifica legale aggiornata della tua impresa.
+                    </p>
+                  </div>
+                </div>
+                <div className="sourcegrid">
+                  {sources.map(x => (
+                    <a
+                      className="panel sourcecard"
+                      key={x.title}
+                      href={x.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <div className="sectionhead">
+                        <p className="eyebrow">{x.scope}</p>
+                        <ArrowUpRight size={18} />
+                      </div>
+                      <h3>{x.title}</h3>
+                      <p>{x.use}</p>
+                    </a>
+                  ))}
+                </div>
+                <section className="panel projectpanel">
+                  <p className="eyebrow">PROGETTO COMPLETO</p>
+                  <h2>Una tutela costruita su elementi verificabili</h2>
+                  <div className="projectgrid">
+                    <article>
+                      <span>01</span>
+                      <h3>Archivio e identità</h3>
+                      <Badge tone="blue">Disponibile</Badge>
+                      <p>
+                        Allegati riservati, metadati, date, confronti di partita IVA e sede, attività
+                        assegnate e fascicoli esportabili.
+                      </p>
+                    </article>
+                    <article>
+                      <span>02</span>
+                      <h3>QR per i controllori</h3>
+                      <Badge tone="blue">Disponibile</Badge>
+                      <p>
+                        Modulo separato, dati dichiarati obbligatori per l’accesso al portale, autorizzazione
+                        del titolare, documenti selezionati, ricerche e cronologia. Rimane disponibile
+                        l’esibizione assistita.
+                      </p>
+                    </article>
+                    <article>
+                      <span>03</span>
+                      <h3>Catalogo documentale e fonti</h3>
+                      <Badge>Disponibile</Badge>
+                      <p>
+                        Ricerca per area, abbinamenti con gli originali, applicabilità annotata e riferimenti
+                        ufficiali. Il monitoraggio normativo continuo e la verifica legale automatica non sono
+                        attivi.
+                      </p>
+                    </article>
+                    <article>
+                      <span>04</span>
+                      <h3>Assistente durante il controllo</h3>
+                      <Badge>Da integrare e validare</Badge>
+                      <p>
+                        Trascrizione con tempi e interlocutori, domande estratte, risposta breve fondata su
+                        fonti e documenti. Identità assegnate manualmente, senza riconoscimento biometrico.
+                      </p>
+                    </article>
+                    <article>
+                      <span>05</span>
+                      <h3>Passaggi da esaminare</h3>
+                      <Badge>Da validare con il legale</Badge>
+                      <p>
+                        Distinguere fatto, dichiarazione, contraddizione e ipotesi. Citare il passaggio e il
+                        contesto, senza attribuire automaticamente reati né valutare menzogne dalla voce.
+                      </p>
+                    </article>
+                    <article>
+                      <span>06</span>
+                      <h3>Conservazione e diffusione</h3>
+                      <Badge>Prima dell’uso su larga scala</Badge>
+                      <p>
+                        Ruoli, separazione tra imprese, tempi di conservazione, cancellazione, backup,
+                        gestione incidenti e valutazione d’impatto ove necessaria. Nessuna diffusione pubblica
+                        degli audio.
+                      </p>
+                    </article>
+                  </div>
+                </section>
+                <section className="panel">
+                  <h2>Come dovrà funzionare il motore normativo</h2>
+                  <div className="ruleflow">
+                    <span>Fonte ufficiale</span>
+                    <ChevronRight />
+                    <span>Versione e periodo</span>
+                    <ChevronRight />
+                    <span>Territorio e attività</span>
+                    <ChevronRight />
+                    <span>Dati dell’impresa</span>
+                    <ChevronRight />
+                    <span>Verifica motivata</span>
+                  </div>
+                  <p className="muted">
+                    Ogni rilievo dovrà indicare articolo, testo pertinente, data dell’ultima verifica, fatti
+                    aziendali utilizzati, condizioni di applicabilità e azione proposta. In assenza di
+                    elementi sufficienti: “Non determinabile”.
+                  </p>
+                  <p className="smallnote">
+                    Un nuovo articolo online non diventa automaticamente un nuovo obbligo. Una proposta di
+                    legge resta distinta da una norma vigente. Le interpretazioni e le sentenze vanno distinte
+                    dal testo normativo.
+                  </p>
+                </section>
+              </TabsContent>
+              <TabsContent value="profile">
+                <div className="sectiontitle">
+                  <div>
+                    <p className="eyebrow">IDENTITÀ E PERIMETRO</p>
+                    <h1>La tua azienda</h1>
+                    <p>Completa i dati attuali, verificandoli sui documenti originali.</p>
+                  </div>
+                  <Badge>Una sede · accesso del titolare</Badge>
+                </div>
+                <form
+                  className="panel profileform"
+                  onSubmit={async e => {
+                    e.preventDefault();
+                    await action({ action: 'profile', data: draftProfile }, 'Profilo aziendale aggiornato');
+                  }}
+                >
+                  <div className="formgrid">
+                    {(
+                      [
+                        ['name', 'Nome commerciale'],
+                        ['legalName', 'Ragione sociale attuale'],
+                        ['vat', 'Partita IVA'],
+                        ['address', 'Indirizzo della sede'],
+                        ['city', 'Comune'],
+                        ['region', 'Regione'],
+                        ['activity', 'Attività svolta'],
+                        ['reviewer', 'Referente tecnico o legale'],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <Field key={key} label={label}>
+                        <input
+                          required={key === 'name'}
+                          maxLength={key === 'address' ? 300 : key === 'vat' ? 30 : 200}
+                          value={draftProfile[key]}
+                          onChange={e => setDraftProfile({ ...draftProfile, [key]: e.target.value })}
+                        />
+                      </Field>
+                    ))}
+                    <Field label="Sono presenti lavoratori?">
+                      <Pick
+                        value={draftProfile.staff}
+                        options={['Sì', 'No', 'Da confermare']}
+                        onChange={v => setDraftProfile({ ...draftProfile, staff: v })}
+                      />
+                    </Field>
+                    <Field label="È presente un dehors?">
+                      <Pick
+                        value={draftProfile.dehors}
+                        options={['Sì', 'No', 'Da confermare']}
+                        onChange={v => setDraftProfile({ ...draftProfile, dehors: v })}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Informativa per il portale dei controlli">
+                    <textarea
+                      rows={8}
+                      maxLength={12000}
+                      value={draftProfile.portalNotice || ''}
+                      onChange={e => setDraftProfile({ ...draftProfile, portalNotice: e.target.value })}
+                      placeholder="Inserisci l’informativa dell’attività: titolare e contatti; dati e finalità; basi giuridiche; fornitori/destinatari ed eventuali trasferimenti; tempi o criteri di conservazione; diritti e modalità di esercizio; reclamo al Garante; campi necessari e modalità alternativa di esibizione. La presa visione non equivale a un consenso generale."
+                    />
+                  </Field>
+                  <div className="formfooter">
+                    <p className="muted">
+                      I confronti usano i campi inseriti; non consultano registri pubblici.
+                    </p>
+                    <button className="button primary" disabled={busy}>
+                      <Save size={17} />
+                      Salva profilo
+                    </button>
+                  </div>
+                </form>
+                <div className="panel">
+                  <h2>Esporta i tuoi dati</h2>
+                  <p className="muted">
+                    Copia in formato JSON di profilo, schede e cronologie. I file originali si scaricano dalle
+                    rispettive schede.
+                  </p>
+                  <button
+                    className="button secondary"
+                    onClick={() =>
+                      download(
+                        JSON.stringify({ exportedAt: new Date().toISOString(), profile, records }, null, 2),
+                        'presidio-archivio.json',
+                      )
+                    }
+                  >
+                    <Download size={16} />
+                    Esporta schede e cronologie
+                  </button>
+                </div>
+              </TabsContent>
+            </>
+          )}
+          <footer className="footer">
+            <span>
+              PRESIDIO <span>·</span> Archivio e assistenza organizzativa
+            </span>
+            <span>Valutazioni legali affidate al professionista</span>
+          </footer>
+        </main>
+      </Tabs>
+      <DocumentImporter open={importOpen} onClose={() => setImportOpen(false)} onSaved={() => refresh()} />
+      <Dialog
+        open={!!modal}
+        onOpenChange={v => {
+          if (!v && !busy) setModal('');
+        }}
+      >
+        <DialogContent className="presidio-dialog">
+          <DialogTitle>
+            {modal === 'document'
+              ? editing
+                ? 'Modifica scheda'
+                : 'Aggiungi un documento'
+              : modal === 'inspection'
+                ? editing
+                  ? 'Dati ed esito del controllo'
+                  : 'Inizia il fascicolo'
+                : modal === 'task'
+                  ? editing
+                    ? 'Modifica azione'
+                    : 'Nuova azione'
+                  : 'QR per il controllo'}
+          </DialogTitle>
+          <DialogDescription>
+            {modal === 'qr'
+              ? 'Accesso dei controllori ai documenti autorizzati.'
+              : modal === 'inspection'
+                ? 'Annota i dati dichiarati. L’identità degli interlocutori si verifica separatamente.'
+                : 'I campi vengono salvati nel tuo spazio riservato.'}
+          </DialogDescription>
+          {modal === 'qr' ? (
+            <div className="qrmodal">
+              <img
+                src="/accesso-qr.svg"
+                width={224}
+                height={224}
+                alt="QR per aprire la postazione di Presidio"
+              />
+              <h3>Il portale dei documenti.</h3>
+              <p>
+                Attiva il portale nella sezione Accessi QR e autorizza gli originali pertinenti a ogni
+                sessione.
+              </p>
+              <button
+                className="button secondary"
+                onClick={() => {
+                  navigator.clipboard
+                    .writeText(location.origin + '/accesso')
+                    .then(() => toast.success('Link copiato'))
+                    .catch(() => toast.error('Copia il link dalla barra del browser'));
+                }}
+              >
+                Copia il collegamento
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={saveForm}>
+              {modal === 'document' && (
+                <DocumentEditor value={form} onChange={setForm} busy={busy} onBusy={setBusy} />
+              )}
+              {modal === 'inspection' && (
+                <>
+                  <Field label="Ente / ufficio *">
+                    <input
+                      required
+                      maxLength={200}
+                      placeholder="Es. ASP, Polizia municipale, Ispettorato…"
+                      value={form.authority || ''}
+                      onChange={e => setForm({ ...form, authority: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Oggetto dichiarato del controllo *">
+                    <input
+                      required
+                      maxLength={200}
+                      value={form.scope || ''}
+                      onChange={e => setForm({ ...form, scope: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Nomi e qualifiche dichiarati">
+                    <textarea
+                      maxLength={1000}
+                      rows={2}
+                      value={form.officers || ''}
+                      onChange={e => setForm({ ...form, officers: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Riferimento / protocollo">
+                    <input
+                      maxLength={200}
+                      value={form.reference || ''}
+                      onChange={e => setForm({ ...form, reference: e.target.value })}
+                    />
+                  </Field>
+                  {editing && (
+                    <>
+                      <Field label="Stato del fascicolo">
+                        <Pick
+                          value={form.status || 'aperto'}
+                          options={['aperto', 'concluso']}
+                          onChange={v =>
+                            setForm({
+                              ...form,
+                              status: v,
+                              ended: v === 'concluso' ? new Date().toISOString() : '',
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field label="Esito e prossime attività (annotazione del responsabile)">
+                        <textarea
+                          rows={4}
+                          maxLength={4000}
+                          value={form.outcome || ''}
+                          onChange={e => setForm({ ...form, outcome: e.target.value })}
+                        />
+                      </Field>
+                    </>
+                  )}
+                  <p className="smallnote">
+                    Il modulo può essere compilato dal responsabile. Non presume obblighi dei controllori di
+                    registrarsi o usare il QR.
+                  </p>
+                </>
+              )}
+              {modal === 'task' && (
+                <>
+                  <Field label="Che cosa occorre fare? *">
+                    <input
+                      required
+                      maxLength={200}
+                      value={form.title || ''}
+                      onChange={e => setForm({ ...form, title: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Responsabile">
+                    <input
+                      maxLength={200}
+                      value={form.responsible || ''}
+                      onChange={e => setForm({ ...form, responsible: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Data concordata">
+                    <input
+                      type="date"
+                      value={form.due || ''}
+                      onChange={e => setForm({ ...form, due: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Istruzioni e risultato atteso">
+                    <textarea
+                      maxLength={4000}
+                      rows={4}
+                      value={form.notes || ''}
+                      onChange={e => setForm({ ...form, notes: e.target.value })}
+                    />
+                  </Field>
+                </>
+              )}
+              <div className="formfooter">
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() => setModal('')}
+                >
+                  Annulla
+                </button>
+                <button className="button primary" disabled={busy}>
+                  <Save size={16} />
+                  {busy ? 'Salvataggio…' : 'Salva'}
+                </button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

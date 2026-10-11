@@ -1,2 +1,203 @@
-.catalog-workbench select{max-width:100%;min-height:44px;padding:10px;border:1px solid #c8d3e2;border-radius:7px;background:white;color:#183153;font:inherit}.catalog-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:22px}.catalog-metrics>button,.catalog-metrics>div{padding:20px;text-align:left;background:#fff;border:1px solid #d7e1ef;border-radius:10px;color:#183153}.catalog-metrics strong{display:block;font-size:30px}.catalog-metrics span{display:block;font-size:13px;margin-top:5px}.catalog-note{padding:18px;background:#edf3fb;border-radius:9px;font-size:14px;line-height:1.7;margin-bottom:22px}.catalog-filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:15px}.catalog-item{margin-top:18px}.catalog-condition{margin-top:9px;font-size:15px}.catalog-details{margin-top:18px;border-top:1px solid #e3eaf3;padding-top:14px}.catalog-details>summary{cursor:pointer;font-size:14px;color:#214c88;font-weight:600}.catalog-assessment{margin-top:18px;max-width:740px}.catalog-source{padding:12px 0;border-top:1px solid #e3eaf3;font-size:12px;line-height:1.7}.catalog-source a{color:#214c88;text-decoration:underline;font-weight:600}.catalog-linked{margin-top:15px;background:#f7f9fc;border-radius:9px;padding:0 14px}.catalog-linked-doc{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:14px 0;border-bottom:1px solid #e3eaf3;font-size:14px}.catalog-linked-doc:last-child{border-bottom:0}.catalog-linked-doc .smallnote{margin-top:5px}.catalog-picker{padding:20px;background:#edf3fb;margin-top:18px;border-radius:9px}.catalog-picker>.field{margin-top:16px}.catalog-choices{max-height:360px;overflow:auto;margin-bottom:18px}.catalog-choice{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid #d1ddee;font-size:14px}.catalog-choice span{flex:1;min-width:0}.catalog-choice small{display:block;color:#617089;overflow-wrap:anywhere;margin-top:5px}.catalog-choice a{color:#214c88;text-decoration:underline}.catalog-choice input{width:20px;height:20px;flex-shrink:0}@media(max-width:850px){.catalog-filters,.catalog-metrics{grid-template-columns:1fr 1fr}.catalog-linked-doc{align-items:flex-start;flex-direction:column}.catalog-workbench .sectiontitle{align-items:flex-start}}@media(max-width:520px){.catalog-filters{grid-template-columns:1fr}.catalog-metrics>button,.catalog-metrics>div{padding:13px}.catalog-choice{flex-wrap:wrap}.catalog-picker{padding:14px}.catalog-item{padding:18px}}
-.catalogue-automation{background:#f4f7fc}.catalog-review{padding:20px;background:#fff;border:1px solid #d7e1ef;border-radius:10px;margin-top:16px}.catalog-reasons{font-size:13px;color:#78581d;padding-left:20px;margin:12px 0}.catalog-reasons li{margin:6px 0}.catalog-job-counts{margin-top:14px}.catalog-review summary{cursor:pointer;color:#214c88;font-size:14px}.catalog-review h3{overflow-wrap:anywhere}
+.catalog-workbench select {
+  max-width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid #c8d3e2;
+  border-radius: 7px;
+  background: white;
+  color: #183153;
+  font: inherit;
+}
+.catalog-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.catalog-metrics > button,
+.catalog-metrics > div {
+  padding: 20px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #d7e1ef;
+  border-radius: 10px;
+  color: #183153;
+}
+.catalog-metrics strong {
+  display: block;
+  font-size: 30px;
+}
+.catalog-metrics span {
+  display: block;
+  font-size: 13px;
+  margin-top: 5px;
+}
+.catalog-note {
+  padding: 18px;
+  background: #edf3fb;
+  border-radius: 9px;
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+.catalog-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 15px;
+}
+.catalog-item {
+  margin-top: 18px;
+}
+.catalog-condition {
+  margin-top: 9px;
+  font-size: 15px;
+}
+.catalog-details {
+  margin-top: 18px;
+  border-top: 1px solid #e3eaf3;
+  padding-top: 14px;
+}
+.catalog-details > summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: #214c88;
+  font-weight: 600;
+}
+.catalog-assessment {
+  margin-top: 18px;
+  max-width: 740px;
+}
+.catalog-source {
+  padding: 12px 0;
+  border-top: 1px solid #e3eaf3;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.catalog-source a {
+  color: #214c88;
+  text-decoration: underline;
+  font-weight: 600;
+}
+.catalog-linked {
+  margin-top: 15px;
+  background: #f7f9fc;
+  border-radius: 9px;
+  padding: 0 14px;
+}
+.catalog-linked-doc {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid #e3eaf3;
+  font-size: 14px;
+}
+.catalog-linked-doc:last-child {
+  border-bottom: 0;
+}
+.catalog-linked-doc .smallnote {
+  margin-top: 5px;
+}
+.catalog-picker {
+  padding: 20px;
+  background: #edf3fb;
+  margin-top: 18px;
+  border-radius: 9px;
+}
+.catalog-picker > .field {
+  margin-top: 16px;
+}
+.catalog-choices {
+  max-height: 360px;
+  overflow: auto;
+  margin-bottom: 18px;
+}
+.catalog-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 4px;
+  border-bottom: 1px solid #d1ddee;
+  font-size: 14px;
+}
+.catalog-choice span {
+  flex: 1;
+  min-width: 0;
+}
+.catalog-choice small {
+  display: block;
+  color: #617089;
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+}
+.catalog-choice a {
+  color: #214c88;
+  text-decoration: underline;
+}
+.catalog-choice input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+@media (max-width: 850px) {
+  .catalog-filters,
+  .catalog-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .catalog-linked-doc {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .catalog-workbench .sectiontitle {
+    align-items: flex-start;
+  }
+}
+@media (max-width: 520px) {
+  .catalog-filters {
+    grid-template-columns: 1fr;
+  }
+  .catalog-metrics > button,
+  .catalog-metrics > div {
+    padding: 13px;
+  }
+  .catalog-choice {
+    flex-wrap: wrap;
+  }
+  .catalog-picker {
+    padding: 14px;
+  }
+  .catalog-item {
+    padding: 18px;
+  }
+}
+.catalogue-automation {
+  background: #f4f7fc;
+}
+.catalog-review {
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #d7e1ef;
+  border-radius: 10px;
+  margin-top: 16px;
+}
+.catalog-reasons {
+  font-size: 13px;
+  color: #78581d;
+  padding-left: 20px;
+  margin: 12px 0;
+}
+.catalog-reasons li {
+  margin: 6px 0;
+}
+.catalog-job-counts {
+  margin-top: 14px;
+}
+.catalog-review summary {
+  cursor: pointer;
+  color: #214c88;
+  font-size: 14px;
+}
+.catalog-review h3 {
+  overflow-wrap: anywhere;
+}

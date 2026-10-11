@@ -6,8 +6,10 @@ export async function getOperator() {
   const token = (await cookies()).get(COOKIE)?.value || '';
   if (!token) return null;
   try {
-    return await readSession(env.DB, (env as unknown as Record<string, unknown>).PRESIDIO_ADMIN_CREDENTIALS, token);
-  } catch { return null; }
+    return await readSession(env.DB, env.PRESIDIO_ADMIN_CREDENTIALS, token);
+  } catch {
+    return null;
+  }
 }
 export async function requireOperator() {
   const user = await getOperator();
