@@ -1,10 +1,11 @@
 'use client';
+import type { TaskData } from '@/lib/schemas';
 import { ClipboardList, Plus } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { dayDiff, Entry } from '@/lib/product';
 import { Action, Badge, fmt, OpenEntry, SectionTitle } from './shared';
 
-function tone(task: Entry) {
+function tone(task: Entry<TaskData>) {
   if (task.data.done) return 'blue';
   const d = dayDiff(task.data.due);
   return d !== null && d < 0 ? 'red' : 'gray';
@@ -16,7 +17,7 @@ export default function ActionsTab({
   action,
   onOpen,
 }: {
-  tasks: Entry[];
+  tasks: Entry<TaskData>[];
   busy: boolean;
   action: Action;
   onOpen: OpenEntry;

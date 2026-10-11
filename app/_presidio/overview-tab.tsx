@@ -1,4 +1,5 @@
 'use client';
+import type { DocumentData, InspectionData, TaskData } from '@/lib/schemas';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -33,9 +34,9 @@ export default function OverviewTab({
   requirements?: number;
   portalEnabled?: boolean;
   profile: Profile;
-  documents: Entry[];
-  inspections: Entry[];
-  tasks: Entry[];
+  documents: Entry<DocumentData>[];
+  inspections: Entry<InspectionData>[];
+  tasks: Entry<TaskData>[];
   onOpen: OpenEntry;
   onTab: (tab: string) => void;
   onFilter: (category: string) => void;

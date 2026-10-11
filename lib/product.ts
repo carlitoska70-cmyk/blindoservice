@@ -26,7 +26,8 @@ export const defaultProfile: Profile = {
   reviewer: '',
   portalNotice: '',
 };
-export type Entry = { id: string; kind: string; data: any; created: string; updated: string };
+/** A stored record. `D` narrows `data` with the shared schema types (lib/schemas.ts). */
+export type Entry<D = any> = { id: string; kind: string; data: D; created: string; updated: string };
 export const sources = [
   {
     title: 'Normattiva',

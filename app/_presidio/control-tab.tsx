@@ -1,4 +1,5 @@
 'use client';
+import type { DocumentData, EventData, InspectionData } from '@/lib/schemas';
 import { useState } from 'react';
 import {
   Clock,
@@ -29,7 +30,7 @@ const clock = (s: number) =>
 
 const secondsSince = (iso: string) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 1000));
 
-function exportReport(profile: Profile, current: Entry, events: Entry[]) {
+function exportReport(profile: Profile, current: Entry<InspectionData>, events: Entry<EventData>[]) {
   const text = [
     'PRESIDIO — FASCICOLO DEL CONTROLLO',
     profile.name,
@@ -78,8 +79,8 @@ export default function ControlTab({
 }: {
   profile: Profile;
   records: Entry[];
-  documents: Entry[];
-  inspections: Entry[];
+  documents: Entry<DocumentData>[];
+  inspections: Entry<InspectionData>[];
   selected: string;
   onSelect: (id: string) => void;
   recorder: Recorder;
@@ -95,7 +96,7 @@ export default function ControlTab({
   const { rec, pending } = recorder;
   const current = inspections.find(x => x.id === selected);
   const events = records
-    .filter(x => x.kind === 'event' && x.data.inspectionId === selected)
+    .filter((x): x is Entry<EventData> => x.kind === 'event' && x.data.inspectionId === selected)
     .sort((a, b) => a.created.localeCompare(b.created));
   const suggestion = guidance(question, documents);
   const open = current?.data.status === 'aperto';

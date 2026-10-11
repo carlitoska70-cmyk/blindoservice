@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Toaster, toast } from 'sonner';
 import ControlRoom, { useRoom } from './control-room';
 import { categories, defaultProfile, Entry, Profile } from '@/lib/product';
+import type { DocumentData, InspectionData, TaskData } from '@/lib/schemas';
 import { api, emptyDoc, emptyInspection, emptyTask, Kind } from './_presidio/shared';
 import { useRecorder } from './_presidio/use-recorder';
 import BottomNav from './_presidio/bottom-nav';
@@ -139,9 +140,15 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
   // Archived records are kept (and restorable) but hidden from every working view.
   const active = useMemo(() => records.filter(x => !x.data?.archivedAt), [records]);
   const archived = useMemo(() => records.filter(x => x.data?.archivedAt), [records]);
-  const documents = useMemo(() => active.filter(x => x.kind === 'document'), [active]);
-  const inspections = useMemo(() => active.filter(x => x.kind === 'inspection'), [active]);
-  const tasks = useMemo(() => active.filter(x => x.kind === 'task'), [active]);
+  const documents = useMemo(
+    () => active.filter(x => x.kind === 'document') as Entry<DocumentData>[],
+    [active],
+  );
+  const inspections = useMemo(
+    () => active.filter(x => x.kind === 'inspection') as Entry<InspectionData>[],
+    [active],
+  );
+  const tasks = useMemo(() => active.filter(x => x.kind === 'task') as Entry<TaskData>[], [active]);
 
   async function refresh(initial = false) {
     try {

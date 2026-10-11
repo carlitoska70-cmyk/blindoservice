@@ -1,4 +1,5 @@
 'use client';
+import type { DocumentData } from '@/lib/schemas';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { offlineIds, offlineSupported, removeOffline, saveOffline } from '@/lib/offline';
@@ -16,7 +17,7 @@ import {
 import { categories, docState, Entry } from '@/lib/product';
 import { Badge, fmt, OpenEntry, Pick, SectionTitle } from './shared';
 
-const searchable = (d: any) =>
+const searchable = (d: DocumentData) =>
   [d.title, d.notes, d.protocol, d.holder, d.issuer, d.documentType].join(' ').toLowerCase();
 
 function useOfflineDocs() {
@@ -56,7 +57,7 @@ export default function ArchiveTab({
   onFilter,
   onOpen,
 }: {
-  documents: Entry[];
+  documents: Entry<DocumentData>[];
   query: string;
   onQuery: (query: string) => void;
   filter: string;
