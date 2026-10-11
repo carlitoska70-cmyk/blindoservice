@@ -154,14 +154,49 @@ export async function ownerId(db: Database) {
   if (!saved) throw new Error('AUTH_STORAGE');
   return saved.owner;
 }
-export async function readSession(db: Database | undefined, rawConfig: unknown, token: string) {
+export type Role = 'owner' | 'staff';
+/** Optional collaborator credential; an invalid or owner-colliding value is ignored. */
+export function staffConfig(raw: unknown, owner: Config): Config | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  try {
+    const c = config(raw);
+    return c.email === owner.email ? null : c;
+  } catch {
+    return null;
+  }
+}
+/**
+ * The role comes from the credential the session was created with: the stored
+ * fingerprint matches either the owner or the collaborator configuration.
+ */
+export async function readSession(
+  db: Database | undefined,
+  rawConfig: unknown,
+  token: string,
+  rawStaff?: unknown,
+) {
   if (!db || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const c = config(rawConfig);
+  const staff = staffConfig(rawStaff, c);
   const row = await db
-    .prepare('SELECT owner FROM admin_sessions WHERE token_hash=? AND expires>? AND credential_hash=?')
-    .bind(await digest(token), now(), await fingerprint(c))
-    .first<{ owner: string }>();
-  return row ? { userId: row.owner, email: c.email, displayName: c.email, fullName: null } : null;
+    .prepare('SELECT owner,credential_hash FROM admin_sessions WHERE token_hash=? AND expires>?')
+    .bind(await digest(token), now())
+    .first<{ owner: string; credential_hash: string }>();
+  if (!row) return null;
+  const who =
+    row.credential_hash === (await fingerprint(c))
+      ? { c, role: 'owner' as Role }
+      : staff && row.credential_hash === (await fingerprint(staff))
+        ? { c: staff, role: 'staff' as Role }
+        : null;
+  if (!who) return null;
+  return {
+    userId: row.owner,
+    email: who.c.email,
+    displayName: who.c.email,
+    fullName: null,
+    role: who.role,
+  };
 }
 /** Shared by password and passkey login: global and per-IP attempt limits (15 min window). */
 export async function rateLimited(req: Request, db: Database) {
@@ -188,7 +223,7 @@ export async function startSession(req: Request, db: Database, c: Config, owner:
   await db.prepare('DELETE FROM admin_login_limits WHERE expires<=?').bind(now()).run();
   return token;
 }
-export async function login(req: Request, db: Database | undefined, rawConfig: unknown) {
+export async function login(req: Request, db: Database | undefined, rawConfig: unknown, rawStaff?: unknown) {
   if (!sameOrigin(req)) return reply('Origine non valida. Torna alla pagina di accesso HTTPS.', 403);
   if (req.headers.get('content-type')?.split(';')[0].trim() !== 'application/x-www-form-urlencoded')
     return reply('Formato non valido.', 415);
@@ -202,16 +237,18 @@ export async function login(req: Request, db: Database | undefined, rawConfig: u
     const data = new URLSearchParams(await limitedBody(req));
     const email = (data.get('email') || '').trim().toLowerCase(),
       password = data.get('password') || '';
-    const matches = equal(await digest(password), c.keyHash);
+    const staff = staffConfig(rawStaff, c);
+    const account = email === c.email ? c : staff && email === staff.email ? staff : null;
+    const matches = equal(await digest(password), (account || c).keyHash);
     if (
       data.getAll('email').length !== 1 ||
       data.getAll('password').length !== 1 ||
-      email !== c.email ||
+      !account ||
       !/^[A-Za-z0-9_-]{43}$/.test(password) ||
       !matches
     )
       return redirect('/login?error=credentials');
-    const token = await startSession(req, db, c, await ownerId(db));
+    const token = await startSession(req, db, account, await ownerId(db));
     return redirect('/', cookie(token));
   } catch (error) {
     if (error instanceof Error && error.message === 'BODY') return reply('Richiesta troppo grande.', 413);

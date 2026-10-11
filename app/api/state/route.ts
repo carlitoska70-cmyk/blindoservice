@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { getOperator as getChatGPTUser } from '@/lib/operator';
+import { getMember } from '@/lib/operator';
 import { z } from 'zod';
 import { defaultProfile } from '@/lib/product';
 import { archivableKinds, profileSchema, recordSchemas } from '@/lib/schemas';
@@ -7,12 +7,15 @@ export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers });
 const str = (max = 4000) => z.string().max(max);
+/** Kinds the collaborator may read and write: documents, actions, catalogue assessments. */
+const STAFF_KINDS = ['document', 'task', 'requirement'];
 async function ctx() {
-  const u = await getChatGPTUser();
+  const u = await getMember();
   if (!u) throw new Error('AUTH');
   if (!env.DB) throw new Error('STORAGE');
-  return { db: env.DB, owner: u.userId };
+  return { db: env.DB, owner: u.userId, staff: u.role !== 'owner' };
 }
+const staffDenied = () => json({ error: 'Operazione riservata al titolare' }, 403);
 function failure(e: unknown) {
   if (e instanceof z.ZodError) return json({ error: e.issues[0]?.message || 'Dati non validi' }, 400);
   if (e instanceof Error && e.message === 'AUTH') return json({ error: 'Accesso richiesto' }, 401);
@@ -25,9 +28,9 @@ function failure(e: unknown) {
 // Revisions grow with every edit and are only needed for the JSON export (?revisions=1).
 export async function GET(req?: Request) {
   try {
-    const { db, owner } = await ctx();
+    const { db, owner, staff } = await ctx();
     const params = req ? new URL(req.url).searchParams : new URLSearchParams();
-    const withRevisions = params.get('revisions') === '1';
+    const withRevisions = params.get('revisions') === '1' && !staff;
     // Incremental sync: ?since=<last cursor> returns only records changed at or after it.
     // Records are never hard-deleted (archive is an update), so merging by id is complete.
     const since = params.get('since') || '';
@@ -40,6 +43,7 @@ export async function GET(req?: Request) {
           'SELECT id,kind,data,created,updated FROM records WHERE owner=?' +
             (withRevisions ? '' : " AND kind<>'revision'") +
             (since ? ' AND updated>=?' : '') +
+            (staff ? ` AND kind IN (${STAFF_KINDS.map(k => `'${k}'`).join(',')})` : '') +
             ' ORDER BY created DESC',
         )
         .bind(...(since ? [owner, since] : [owner]))
@@ -61,13 +65,14 @@ export async function POST(req: Request) {
   try {
     if (req.headers.get('origin') !== new URL(req.url).origin)
       return json({ error: 'Origine non valida' }, 403);
-    const { db, owner } = await ctx();
+    const { db, owner, staff } = await ctx();
     if (Number(req.headers.get('content-length') || 0) > 50000)
       return json({ error: 'Richiesta troppo grande' }, 413);
     const raw = await req.text();
     if (raw.length > 50000) return json({ error: 'Richiesta troppo grande' }, 413);
     const b = JSON.parse(raw);
     const now = new Date().toISOString();
+    if (staff && (b.action === 'profile' || !STAFF_KINDS.includes(b.kind))) return staffDenied();
     if (b.action === 'profile') {
       const data = profileSchema.parse(b.data);
       await db

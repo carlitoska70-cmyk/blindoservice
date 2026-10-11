@@ -163,25 +163,33 @@ try {
       console.log('Apri http://localhost:5173 — arresta con Ctrl+C. I dati sono locali.');
       run(node, ['scripts/run-framework.mjs', 'dev', '--hostname', '127.0.0.1']);
       break;
-    case 'admin': {
+    case 'admin':
+    case 'staff': {
       prepare();
-      const email = (process.argv[3] || 'admin@presidio.local').trim().toLowerCase();
+      const staff = action === 'staff';
+      const variable = staff ? 'PRESIDIO_STAFF_CREDENTIALS' : 'PRESIDIO_ADMIN_CREDENTIALS';
+      const email = (process.argv[3] || (staff ? 'collaboratore@presidio.local' : 'admin@presidio.local'))
+        .trim()
+        .toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Email non valida.');
       const password = randomBytes(32).toString('base64url');
       const keyHash = createHash('sha256').update(password).digest('hex');
       const previous = fs
         .readFileSync('.dev.vars', 'utf8')
         .split('\n')
-        .filter(l => !/^PRESIDIO_ADMIN_CREDENTIALS=/.test(l))
+        .filter(l => !l.startsWith(variable + '='))
         .join('\n')
         .trimEnd();
       fs.writeFileSync(
         '.dev.vars',
-        previous + "\nPRESIDIO_ADMIN_CREDENTIALS='" + JSON.stringify({ email, keyHash }) + "'\n",
+        previous + '\n' + variable + "='" + JSON.stringify({ email, keyHash }) + "'\n",
         { mode: 0o600 },
       );
       fs.chmodSync('.dev.vars', 0o600);
-      console.log('Accesso LOCALE configurato (non cambia il sito online). Riavvia Presidio.');
+      console.log(
+        (staff ? 'Accesso COLLABORATORE' : 'Accesso') +
+          ' LOCALE configurato (non cambia il sito online). Riavvia Presidio.',
+      );
       console.log('Email: ' + email);
       console.log('Password: ' + password);
       console.log('Salvala nel portachiavi del Mac. Rilanciando il comando ne generi una nuova.');
@@ -257,7 +265,7 @@ try {
       break;
     default:
       console.log(
-        'Presidio PC: setup | start | db | admin [EMAIL] | key (stdin) | backup | verify | update CARTELLA | test',
+        'Presidio PC: setup | start | db | admin [EMAIL] | staff [EMAIL] | key (stdin) | backup | verify | update CARTELLA | test',
       );
   }
 } catch (e) {

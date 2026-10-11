@@ -19,7 +19,7 @@ export async function roomApi(action?: string, data: any = {}) {
   if (!r.ok) throw new Error(d.error || 'Postazione non disponibile');
   return d;
 }
-export function useRoom() {
+export function useRoom(enabled = true) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(''),
     [now, setNow] = useState(0);
@@ -36,6 +36,7 @@ export function useRoom() {
     }
   }
   useEffect(() => {
+    if (!enabled) return;
     // Poll every 4 s while the page is visible; catch up immediately on return.
     refresh();
     const t = setInterval(() => {
@@ -49,7 +50,8 @@ export function useRoom() {
       clearInterval(t);
       document.removeEventListener('visibilitychange', back);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
   return { data, error, refresh, now };
 }
 const clock = (v: string) => new Date(v).toLocaleString('it-IT', { timeZone: 'Europe/Rome' });

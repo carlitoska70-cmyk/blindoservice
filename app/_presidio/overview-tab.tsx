@@ -16,6 +16,7 @@ import { dueItems, romeToday } from '@/lib/reminders';
 import { Badge, fmt, OpenEntry } from './shared';
 
 export default function OverviewTab({
+  staff = false,
   profile,
   documents,
   inspections,
@@ -25,6 +26,7 @@ export default function OverviewTab({
   onFilter,
   onInspection,
 }: {
+  staff?: boolean;
   profile: Profile;
   documents: Entry[];
   inspections: Entry[];
@@ -51,10 +53,12 @@ export default function OverviewTab({
             <span>Al momento giusto.</span>
           </h1>
         </div>
-        <button className="button primary" onClick={() => onOpen('inspection')}>
-          <ScanLine size={18} />
-          Avvia un controllo
-        </button>
+        {!staff && (
+          <button className="button primary" onClick={() => onOpen('inspection')}>
+            <ScanLine size={18} />
+            Avvia un controllo
+          </button>
+        )}
       </div>
       <section className="panel">
         <div className="sectionhead">
@@ -80,11 +84,13 @@ export default function OverviewTab({
           <strong>{toReview}</strong>
           <span>date da riesaminare</span>
         </div>
-        <div>
-          <ScanLine />
-          <strong>{inspections.filter(x => x.data.status === 'aperto').length}</strong>
-          <span>controlli aperti</span>
-        </div>
+        {!staff && (
+          <div>
+            <ScanLine />
+            <strong>{inspections.filter(x => x.data.status === 'aperto').length}</strong>
+            <span>controlli aperti</span>
+          </div>
+        )}
         <div>
           <ClipboardList />
           <strong>{tasks.filter(x => !x.data.done).length}</strong>
@@ -123,26 +129,28 @@ export default function OverviewTab({
             )}
           </div>
         </section>
-        <section className="panel darkpanel">
-          <p className="eyebrow">LA TUA POSTAZIONE DI ASSISTENZA</p>
-          <h2>
-            Quando arriva
-            <br />
-            un controllo,
-            <br />
-            apri il fascicolo.
-          </h2>
-          <p>
-            Richieste, documenti e annotazioni nella stessa schermata. Una cronologia ordinata da rileggere
-            con il professionista.
-          </p>
-          <button className="button light" onClick={() => onTab('control')}>
-            Apri la postazione <ArrowUpRight size={17} />
-          </button>
-          <div className="darkfoot">
-            <LockKeyhole size={15} /> L’archivio resta riservato.
-          </div>
-        </section>
+        {!staff && (
+          <section className="panel darkpanel">
+            <p className="eyebrow">LA TUA POSTAZIONE DI ASSISTENZA</p>
+            <h2>
+              Quando arriva
+              <br />
+              un controllo,
+              <br />
+              apri il fascicolo.
+            </h2>
+            <p>
+              Richieste, documenti e annotazioni nella stessa schermata. Una cronologia ordinata da rileggere
+              con il professionista.
+            </p>
+            <button className="button light" onClick={() => onTab('control')}>
+              Apri la postazione <ArrowUpRight size={17} />
+            </button>
+            <div className="darkfoot">
+              <LockKeyhole size={15} /> L’archivio resta riservato.
+            </div>
+          </section>
+        )}
       </div>
       {due.length > 0 && (
         <section className="panel">
@@ -174,29 +182,31 @@ export default function OverviewTab({
           </div>
         </section>
       )}
-      <section className="panel recentinspections">
-        <div className="sectionhead">
-          <h2>Ultimi controlli</h2>
-          <button className="textbutton" onClick={() => onTab('control')}>
-            Storico completo
-          </button>
-        </div>
-        {inspections.slice(0, 5).map(x => (
-          <button className="finding" key={x.id} onClick={() => onInspection(x.id)}>
-            <ScanLine size={20} />
-            <span>
-              <strong>{x.data.authority}</strong>
-              <small>
-                {fmt(x.created)} · {x.data.scope}
-              </small>
-            </span>
-            <Badge>{x.data.status}</Badge>
-          </button>
-        ))}
-        {!inspections.length && (
-          <p className="muted">I controlli manuali e le sessioni QR autorizzate compariranno qui.</p>
-        )}
-      </section>
+      {!staff && (
+        <section className="panel recentinspections">
+          <div className="sectionhead">
+            <h2>Ultimi controlli</h2>
+            <button className="textbutton" onClick={() => onTab('control')}>
+              Storico completo
+            </button>
+          </div>
+          {inspections.slice(0, 5).map(x => (
+            <button className="finding" key={x.id} onClick={() => onInspection(x.id)}>
+              <ScanLine size={20} />
+              <span>
+                <strong>{x.data.authority}</strong>
+                <small>
+                  {fmt(x.created)} · {x.data.scope}
+                </small>
+              </span>
+              <Badge>{x.data.status}</Badge>
+            </button>
+          ))}
+          {!inspections.length && (
+            <p className="muted">I controlli manuali e le sessioni QR autorizzate compariranno qui.</p>
+          )}
+        </section>
+      )}
       <div className="lowergrid">
         <section className="panel">
           <div className="sectionhead">

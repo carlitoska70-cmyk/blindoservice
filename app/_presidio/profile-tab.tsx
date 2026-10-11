@@ -139,13 +139,50 @@ function ReminderStatus() {
   );
 }
 
+function ArchivedList({ archived, busy, action }: { archived: Entry[]; busy: boolean; action: Action }) {
+  return (
+    <section className="panel" id="archiviati">
+      <div className="sectionhead">
+        <h2>Archiviati</h2>
+        <Badge>{archived.length}</Badge>
+      </div>
+      <p className="muted">
+        Le schede archiviate non compaiono nelle viste di lavoro né nel portale dei controlli. Restano nel
+        database, nella cronologia e nell’esportazione: puoi ripristinarle in qualsiasi momento.
+      </p>
+      {archived.map(x => (
+        <div className="archivedrow" key={x.id}>
+          <span>
+            <strong>{entryTitle(x)}</strong>
+            <small>
+              {kindLabel[x.kind] || x.kind} · archiviata il {fmt(x.data.archivedAt)}
+            </small>
+          </span>
+          <button
+            className="button secondary compact"
+            disabled={busy}
+            onClick={() =>
+              action({ action: 'restore', kind: x.kind, id: x.id, version: x.updated }, 'Scheda ripristinata')
+            }
+          >
+            <ArchiveRestore size={15} /> Ripristina
+          </button>
+        </div>
+      ))}
+      {!archived.length && <p className="smallnote">Nessuna scheda archiviata.</p>}
+    </section>
+  );
+}
+
 export default function ProfileTab({
+  staff = false,
   draft,
   onDraft,
   archived,
   busy,
   action,
 }: {
+  staff?: boolean;
   draft: Profile;
   onDraft: (profile: Profile) => void;
   archived: Entry[];
@@ -153,6 +190,25 @@ export default function ProfileTab({
   action: Action;
 }) {
   const [exporting, setExporting] = useState(false);
+  if (staff)
+    return (
+      <>
+        <SectionTitle
+          eyebrow="ACCESSO COLLABORATORE"
+          title="La tua azienda"
+          text="Profilo, accessi e impostazioni sono gestiti dal titolare."
+        >
+          <Badge>Collaboratore</Badge>
+        </SectionTitle>
+        <div className="notice">
+          <div>
+            <strong>Puoi caricare e aggiornare documenti, azioni e valutazioni del catalogo.</strong>
+            <p>Controlli, cronologie, audio e accessi QR sono riservati al titolare.</p>
+          </div>
+        </div>
+        <ArchivedList archived={archived} busy={busy} action={action} />
+      </>
+    );
   return (
     <>
       <SectionTitle
@@ -241,39 +297,7 @@ export default function ProfileTab({
       </div>
       <PasskeyPanel />
       <ReminderStatus />
-      <section className="panel" id="archiviati">
-        <div className="sectionhead">
-          <h2>Archiviati</h2>
-          <Badge>{archived.length}</Badge>
-        </div>
-        <p className="muted">
-          Le schede archiviate non compaiono nelle viste di lavoro né nel portale dei controlli. Restano nel
-          database, nella cronologia e nell’esportazione: puoi ripristinarle in qualsiasi momento.
-        </p>
-        {archived.map(x => (
-          <div className="archivedrow" key={x.id}>
-            <span>
-              <strong>{entryTitle(x)}</strong>
-              <small>
-                {kindLabel[x.kind] || x.kind} · archiviata il {fmt(x.data.archivedAt)}
-              </small>
-            </span>
-            <button
-              className="button secondary compact"
-              disabled={busy}
-              onClick={() =>
-                action(
-                  { action: 'restore', kind: x.kind, id: x.id, version: x.updated },
-                  'Scheda ripristinata',
-                )
-              }
-            >
-              <ArchiveRestore size={15} /> Ripristina
-            </button>
-          </div>
-        ))}
-        {!archived.length && <p className="smallnote">Nessuna scheda archiviata.</p>}
-      </section>
+      <ArchivedList archived={archived} busy={busy} action={action} />
     </>
   );
 }

@@ -1,8 +1,10 @@
 import { env } from 'cloudflare:workers';
-import { getOperator as getChatGPTUser } from '@/lib/operator';
+import { getMember } from '@/lib/operator';
+// The collaborator handles documents only: audio of inspections stays owner-only.
+const isAudio = (mime: string) => mime.startsWith('audio/');
 export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
-  const user = await getChatGPTUser();
+  const user = await getMember();
   if (!user) return Response.json({ error: 'Accesso richiesto' }, { status: 401 });
   if (req.headers.get('origin') !== new URL(req.url).origin)
     return Response.json({ error: 'Origine non valida' }, { status: 403 });
@@ -25,6 +27,8 @@ export async function POST(req: Request) {
         { error: 'Formati ammessi: PDF, JPG, PNG, WebP, audio WebM, MP4, MP3, WAV, OGG.' },
         { status: 400 },
       );
+    if (user.role !== 'owner' && isAudio(file.type))
+      return Response.json({ error: 'Gli audio sono riservati al titolare' }, { status: 403 });
     const id = crypto.randomUUID(),
       key = user.userId + '/' + id;
     const bytes = await file.arrayBuffer();
@@ -52,7 +56,7 @@ export async function POST(req: Request) {
   }
 }
 export async function GET(req: Request) {
-  const user = await getChatGPTUser();
+  const user = await getMember();
   if (!user) return new Response('Accesso richiesto', { status: 401 });
   if (!env.DB || !env.BUCKET) return new Response('Archivio non disponibile', { status: 503 });
   try {
@@ -60,7 +64,7 @@ export async function GET(req: Request) {
     const f = await env.DB.prepare('SELECT name,mime,object_key,sha256 FROM files WHERE id=? AND owner=?')
       .bind(id, user.userId)
       .first<any>();
-    if (!f) return new Response('Non trovato', { status: 404 });
+    if (!f || (user.role !== 'owner' && isAudio(f.mime))) return new Response('Non trovato', { status: 404 });
     const object = await env.BUCKET.get(f.object_key);
     if (!object) return new Response('Allegato non disponibile', { status: 404 });
     return new Response(object.body, {

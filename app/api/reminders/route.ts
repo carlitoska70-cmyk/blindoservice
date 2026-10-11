@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { getOperator } from '@/lib/operator';
+import { getMember } from '@/lib/operator';
 import { defaultProfile } from '@/lib/product';
 import { dueItems, notifiable, reminderText, romeToday, type ReminderRecord } from '@/lib/reminders';
 export const dynamic = 'force-dynamic';
@@ -61,7 +61,7 @@ async function send(e: Env, subject: string, text: string) {
 
 /** Owner view: what is due now (all items, not only today's milestones). */
 export async function GET() {
-  const user = await getOperator();
+  const user = await getMember();
   if (!user) return json({ error: 'Accesso richiesto' }, 401);
   if (!env.DB) return json({ error: 'Archivio non disponibile' }, 503);
   const { records } = await load(env.DB, user.userId);

@@ -1,11 +1,11 @@
 import { env } from 'cloudflare:workers';
-import { getOperator } from '@/lib/operator';
+import { getMember } from '@/lib/operator';
 import { rate } from '@/lib/portal-server';
 import { categories } from '@/lib/product';
 import { handleRecognition } from '@/lib/document-recognition';
 export function recognize(req: Request) {
   return handleRecognition(req, {
-    authorize: getOperator,
+    authorize: getMember, // collaborator allowed: document workflows
     apiKey: () => env.OPENAI_API_KEY,
     categories,
     rate: uid => rate('document-recognition:' + uid, 600, 3600),

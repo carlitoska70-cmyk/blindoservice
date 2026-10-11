@@ -31,8 +31,13 @@ async function run(args, input) {
     }
   });
 }
+// --staff configures the collaborator credential (documents and actions only).
+const staff = process.argv.includes('--staff');
+const secretName = staff ? 'PRESIDIO_STAFF_CREDENTIALS' : 'PRESIDIO_ADMIN_CREDENTIALS';
 try {
-  console.log('\nCONFIGURAZIONE ACCESSO BLINDOSERVICE\n');
+  console.log(
+    staff ? '\nCONFIGURAZIONE ACCESSO COLLABORATORE\n' : '\nCONFIGURAZIONE ACCESSO BLINDOSERVICE\n',
+  );
   console.log(
     'Questa procedura aggiunge tre tabelle di autenticazione al DB remoto e configura un segreto sul Worker indicato da wrangler.jsonc.',
   );
@@ -42,7 +47,13 @@ try {
   console.log(
     'È destinata al tuo archivio a proprietario unico. Con più proprietari il login si blocca: non unisce i dati.\n',
   );
-  const email = (await rl.question('La tua email per accedere: ')).trim().toLowerCase();
+  if (staff)
+    console.log(
+      'Il collaboratore potrà gestire documenti e azioni, non controlli, audio e accessi QR. Usa una email diversa dalla tua.\n',
+    );
+  const email = (await rl.question(staff ? 'Email del collaboratore: ' : 'La tua email per accedere: '))
+    .trim()
+    .toLowerCase();
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new Error('Email non valida. Rilancia la procedura.');
   const password = randomBytes(32).toString('base64url');
@@ -60,10 +71,7 @@ try {
   } else {
     rl.close();
     await run(['d1', 'execute', 'DB', '--remote', '--file', 'scripts/admin-login-schema.sql', '--yes']);
-    await run(
-      ['secret', 'bulk'],
-      JSON.stringify({ PRESIDIO_ADMIN_CREDENTIALS: JSON.stringify({ email, keyHash }) }),
-    );
+    await run(['secret', 'bulk'], JSON.stringify({ [secretName]: JSON.stringify({ email, keyHash }) }));
     console.log('\nCONFIGURAZIONE COMPLETATA. Ora pubblica:');
     console.log('corepack pnpm exec wrangler deploy --config wrangler.jsonc');
     console.log('Poi apri https://blindoservice.carlitoska70.workers.dev/login');

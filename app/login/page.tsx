@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation';
-import { getOperator } from '@/lib/operator';
+import { getMember } from '@/lib/operator';
 import PasskeyButton from './passkey-button';
 export const dynamic = 'force-dynamic';
 export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  if (await getOperator()) redirect('/');
+  if (await getMember()) redirect('/');
   const { error } = await searchParams;
   return (
     <main className="visitor" style={{ maxWidth: 520, margin: '60px auto', padding: 20 }}>

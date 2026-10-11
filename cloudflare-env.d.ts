@@ -5,6 +5,7 @@ declare namespace Cloudflare {
     PRESIDIO_OWNER_EMAIL?: string;
     OPENAI_API_KEY?: string;
     PRESIDIO_ADMIN_CREDENTIALS?: string;
+    PRESIDIO_STAFF_CREDENTIALS?: string;
     PRESIDIO_REMINDER_TOKEN?: string;
     TELEGRAM_BOT_TOKEN?: string;
     TELEGRAM_CHAT_ID?: string;

@@ -233,3 +233,43 @@ test('storage failure never produces an authenticated response', async () => {
     503,
   );
 });
+
+test('collaborator: separate credential, staff role, rotation and collision', async () => {
+  const db = database();
+  const staffPassword = randomKey();
+  const staffRaw = JSON.stringify({ email: 'staff@example.com', keyHash: await digest(staffPassword) });
+  const tokenOf = res => res.headers.get('set-cookie')?.match(new RegExp(COOKIE + '=([^;]+)'))?.[1] || '';
+  const asStaff = request({
+    body: new URLSearchParams({ email: 'staff@example.com', password: staffPassword }),
+  });
+  const res = await login(asStaff, db, raw, staffRaw);
+  assert.equal(res.headers.get('location'), '/');
+  const token = tokenOf(res);
+  const session = await readSession(db, raw, token, staffRaw);
+  assert.equal(session.role, 'staff');
+  assert.equal(session.email, 'staff@example.com');
+  // Owner password on the staff email is rejected.
+  const wrong = await login(
+    request({ body: new URLSearchParams({ email: 'staff@example.com', password }) }),
+    db,
+    raw,
+    staffRaw,
+  );
+  assert.match(wrong.headers.get('location'), /error=credentials/);
+  // Owner still gets the owner role with both configurations present.
+  const owner = await readSession(db, raw, tokenOf(await login(request(), db, raw, staffRaw)), staffRaw);
+  assert.equal(owner.role, 'owner');
+  // Rotating or removing the collaborator credential invalidates only collaborator sessions.
+  const rotated = JSON.stringify({ email: 'staff@example.com', keyHash: await digest(randomKey()) });
+  assert.equal(await readSession(db, raw, token, rotated), null);
+  assert.equal(await readSession(db, raw, token, undefined), null);
+  // A collaborator credential that reuses the owner email is ignored.
+  const clash = JSON.stringify({ email: 'owner@example.com', keyHash: await digest(staffPassword) });
+  const c = await login(
+    request({ body: new URLSearchParams({ email: 'owner@example.com', password: staffPassword }) }),
+    db,
+    raw,
+    clash,
+  );
+  assert.match(c.headers.get('location'), /error=credentials/);
+});

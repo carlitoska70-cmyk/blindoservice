@@ -46,6 +46,7 @@ globalThis.__presidioTest = {
   user: null,
   env: {
     PRESIDIO_OWNER_EMAIL: 'owner@example.test',
+    PRESIDIO_STAFF_EMAIL: 'staff@example.test',
     DB: {
       prepare: q => new Statement(q),
       batch: async stmts => {
@@ -74,7 +75,7 @@ globalThis.__presidioTest = {
 };
 writeFileSync(
   join(dir, 'harness.mjs'),
-  `export const env=globalThis.__presidioTest.env;export async function getChatGPTUser(){return globalThis.__presidioTest.user}export async function getOperator(){const u=globalThis.__presidioTest.user;return u&&u.email===env.PRESIDIO_OWNER_EMAIL?u:null}export const requireOperator=getOperator;export const chatGPTSignInPath=()=>'/signin-with-chatgpt';export function redirect(){throw new Error('redirect')}`,
+  `export const env=globalThis.__presidioTest.env;export async function getChatGPTUser(){return globalThis.__presidioTest.user}export async function getMember(){const u=globalThis.__presidioTest.user;if(!u)return null;const role=u.email===env.PRESIDIO_OWNER_EMAIL?'owner':u.email===env.PRESIDIO_STAFF_EMAIL?'staff':null;return role?{...u,role}:null}export async function getOperator(){const u=await getMember();return u&&u.role==='owner'?u:null}export const requireOperator=getOperator;export const requireMember=getMember;export const chatGPTSignInPath=()=>'/signin-with-chatgpt';export function redirect(){throw new Error('redirect')}`,
 );
 const files = [
   'lib/catalogue.ts',
@@ -381,6 +382,53 @@ try {
   assert.equal((await state.GET(req('/api/state?since=yesterday'))).status, 400);
   assert.equal((await post({ action: 'restore', kind: 'document', id: 'd2', version: d2v() })).status, 200);
   assert(!JSON.parse(database.prepare('SELECT data FROM records WHERE id=?').get('d2').data).archivedAt);
+  passed++;
+  // Collaborator: documents and actions only; inspections, events, audio and room stay owner-only.
+  globalThis.__presidioTest.user = { userId: 'owner-id', email: 'staff@example.test' };
+  const staffKinds = (await json(await state.GET(req('/api/state?revisions=1')))).data.records.map(
+    r => r.kind,
+  );
+  assert(
+    staffKinds.includes('document') && !staffKinds.some(k => ['inspection', 'event', 'revision'].includes(k)),
+  );
+  assert.equal(
+    (
+      await post({
+        action: 'create',
+        kind: 'event',
+        data: { inspectionId: inspectionId, speaker: '', text: 'x', tag: 'Nota', offset: 0 },
+      })
+    ).status,
+    403,
+  );
+  assert.equal((await post({ action: 'profile', data: {} })).status, 403);
+  assert.equal(
+    (await post({ action: 'archive', kind: 'inspection', id: inspectionId, version: 'x' })).status,
+    403,
+  );
+  assert.equal(
+    (
+      await post({
+        action: 'create',
+        kind: 'task',
+        data: { title: 'Reperire planimetria', responsible: '', due: '', notes: '', done: false },
+      })
+    ).status,
+    200,
+  );
+  database
+    .prepare('INSERT INTO files VALUES(?,?,?,?,?,?,?)')
+    .run('faudio', 'owner-id', 'a.webm', 'audio/webm', 'objaudio', 'h', now);
+  bucket.set('objaudio', 'AUDIO');
+  assert.equal((await privateFile.GET(req('/api/files?id=faudio'))).status, 404);
+  assert.equal((await privateFile.GET(req('/api/files?id=fd1'))).status, 200);
+  assert.equal((await room.GET()).status, 401);
+  assert.equal(
+    (await ai.POST(req('/api/assistant', { action: 'transcribe', inspectionId, eventId: 'x' }))).status,
+    401,
+  );
+  owner();
+  assert.equal((await privateFile.GET(req('/api/files?id=faudio'))).status, 200);
   passed++;
   const { catalogue, catalogueCategories } = await mod('lib/catalogue');
   assert.equal(new Set(catalogue.map(c => c.id)).size, catalogue.length);

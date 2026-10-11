@@ -1,8 +1,8 @@
 import Presidio from './presidio';
-import { requireOperator } from '@/lib/operator';
+import { requireMember } from '@/lib/operator';
 export const dynamic = 'force-dynamic';
 export default async function Home() {
-  const user = await requireOperator();
+  const user = await requireMember();
   if (!user)
     return (
       <main className="panel empty">
@@ -10,5 +10,5 @@ export default async function Home() {
         <p>Questo account non è abilitato. Per consultare i documenti usa il QR esposto nell’attività.</p>
       </main>
     );
-  return <Presidio name={user.displayName} />;
+  return <Presidio name={user.displayName} role={user.role} />;
 }

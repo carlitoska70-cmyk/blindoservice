@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { getOperator } from '@/lib/operator';
+import { getMember } from '@/lib/operator';
 import { recognize } from '@/lib/recognition-service';
 import { allCatalogue } from '@/lib/catalogue-index';
 import { withCatalogLinks } from '@/lib/catalogue-matching';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 const valid = new Set(allCatalogue.map(c => c.id));
 function handle(req: Request) {
   return handleCatalogueBatch(req, {
-    authorize: getOperator,
+    authorize: getMember, // collaborator allowed: document workflows
     db: env.DB,
     recognize,
     decide: (r, p) => decideCatalogue(r, p, allCatalogue),

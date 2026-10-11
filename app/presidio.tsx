@@ -39,6 +39,7 @@ function mergeRecords(prev: Entry[], changed: Entry[]) {
   return [...byId.values()].sort((a, b) => b.created.localeCompare(a.created));
 }
 
+const STAFF_HIDDEN: string[] = ['room', 'control'];
 const navigation = [
   ['overview', 'Situazione', ShieldCheck],
   ['archive', 'Documenti', FolderOpen],
@@ -102,7 +103,9 @@ function useModelContextSearch(onResult: (query: string, records: Entry[]) => vo
   }, []);
 }
 
-export default function Presidio({ name }: { name: string }) {
+export default function Presidio({ name, role = 'owner' }: { name: string; role?: 'owner' | 'staff' }) {
+  // The collaborator works on documents and actions only; the server enforces the same limits.
+  const staff = role !== 'owner';
   const [tab, setTab] = useState('overview'),
     [profile, setProfile] = useState<Profile>(defaultProfile),
     [draftProfile, setDraftProfile] = useState<Profile>(defaultProfile),
@@ -120,7 +123,7 @@ export default function Presidio({ name }: { name: string }) {
     [importUsed, setImportUsed] = useState(false),
     [dialogUsed, setDialogUsed] = useState(false);
   const cursor = useRef('');
-  const room = useRoom();
+  const room = useRoom(!staff);
   const draft = useNoteDraft();
   const recorder = useRecorder({ setBusy, refresh: () => refresh() });
 
@@ -296,7 +299,7 @@ export default function Presidio({ name }: { name: string }) {
         </a>
         <div className="header-right">
           <span>
-            <LockKeyhole size={15} /> Spazio riservato
+            <LockKeyhole size={15} /> {staff ? 'Accesso collaboratore' : 'Spazio riservato'}
           </span>
           <div className="avatar" title={name}>
             {name.slice(0, 1).toUpperCase()}
@@ -326,12 +329,14 @@ export default function Presidio({ name }: { name: string }) {
       <Tabs value={tab} onValueChange={setTab} className="shell">
         <div className="navwrap">
           <TabsList className="navigation">
-            {navigation.map(([id, title, Icon]) => (
-              <TabsTrigger value={id} key={id}>
-                <Icon size={17} />
-                {title}
-              </TabsTrigger>
-            ))}
+            {navigation
+              .filter(([id]) => !staff || !STAFF_HIDDEN.includes(id))
+              .map(([id, title, Icon]) => (
+                <TabsTrigger value={id} key={id}>
+                  <Icon size={17} />
+                  {title}
+                </TabsTrigger>
+              ))}
           </TabsList>
         </div>
         <main className="workspace">
@@ -370,6 +375,7 @@ export default function Presidio({ name }: { name: string }) {
             <>
               <TabsContent value="overview">
                 <OverviewTab
+                  staff={staff}
                   profile={profile}
                   documents={documents}
                   inspections={inspections}
@@ -492,6 +498,7 @@ export default function Presidio({ name }: { name: string }) {
               </TabsContent>
               <TabsContent value="profile">
                 <ProfileTab
+                  staff={staff}
                   draft={draftProfile}
                   onDraft={setDraftProfile}
                   archived={archived}
