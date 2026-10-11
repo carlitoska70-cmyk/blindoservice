@@ -8,6 +8,7 @@ import {
   Headphones,
   Mic,
   Plus,
+  Printer,
   Save,
   ScanLine,
   Square,
@@ -180,6 +181,15 @@ export default function ControlTab({
                 <Download size={16} />
                 Esporta cronologia
               </button>
+              <a
+                className="button secondary"
+                href={'/fascicolo?id=' + encodeURIComponent(current.id)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Printer size={16} />
+                PDF
+              </a>
               <button
                 className="button secondary"
                 disabled={pending}

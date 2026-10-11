@@ -1,0 +1,48 @@
+.poster-sheet {
+  text-align: center;
+  border: 2px solid #17243c;
+  border-radius: 12px;
+  padding: 36px 28px;
+}
+.poster-sheet h1 {
+  font-size: 30px;
+  margin: 6px 0 22px;
+}
+.poster-qr {
+  width: min(340px, 80vw);
+  margin: 0 auto 22px;
+}
+.poster-qr svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.poster-sheet ol {
+  text-align: left;
+  max-width: 460px;
+  margin: 0 auto 18px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.poster-url {
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  word-break: break-all;
+}
+.poster-note {
+  color: #5c6b82;
+  font-size: 12px;
+  max-width: 520px;
+  margin: 14px auto 0;
+}
+@media print {
+  .poster .notice {
+    display: none;
+  }
+  .poster-sheet {
+    min-height: 255mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}

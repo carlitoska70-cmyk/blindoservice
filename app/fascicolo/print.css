@@ -1,0 +1,100 @@
+.print-page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+  background: #fff;
+  color: #17243c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.print-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+  color: #5c6b82;
+}
+.print-head {
+  border-bottom: 2px solid #17243c;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+.print-head h1 {
+  font-size: 26px;
+  margin: 4px 0;
+}
+.print-page h2 {
+  font-size: 15px;
+  margin: 22px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.print-page dl {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 4px 16px;
+  margin: 0;
+}
+.print-page dt {
+  color: #5c6b82;
+}
+.print-page dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.print-page table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.print-page th,
+.print-page td {
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #dbe2ed;
+  padding: 6px 8px 6px 0;
+}
+.print-page td:last-child {
+  white-space: pre-wrap;
+}
+.print-page small {
+  display: block;
+  color: #5c6b82;
+}
+.print-review blockquote {
+  margin: 8px 0;
+  padding-left: 10px;
+  border-left: 3px solid #dbe2ed;
+}
+.print-foot {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid #dbe2ed;
+  color: #5c6b82;
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  .print-page dl {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+  body {
+    background: #fff !important;
+  }
+  .print-actions {
+    display: none;
+  }
+  .print-page {
+    padding: 0;
+    max-width: none;
+  }
+  .print-page tr,
+  .print-review {
+    break-inside: avoid;
+  }
+}

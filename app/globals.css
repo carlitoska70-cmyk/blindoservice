@@ -1878,3 +1878,14 @@ svg {
 .archivedrow small {
   color: #657188;
 }
+
+.qrlive {
+  width: 140px;
+  height: 140px;
+  flex: none;
+}
+.qrlive svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

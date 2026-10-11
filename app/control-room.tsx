@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Radio, ScanLine, Check, FileText, Download, ShieldCheck, ExternalLink } from 'lucide-react';
 import { Entry } from '@/lib/product';
 import { toast } from 'sonner';
+import { qrSvg } from '@/lib/qr';
 export async function roomApi(action?: string, data: any = {}) {
   const r = await fetch(
     '/api/control-room',
@@ -61,6 +62,9 @@ export default function ControlRoom({
   documents: Entry[];
   onInspection: (id: string) => void;
 }) {
+  // Encodes this deployment's own address, so the printed QR never points at an old host.
+  const [accessQr, setAccessQr] = useState('');
+  useEffect(() => setAccessQr(qrSvg(location.origin + '/accesso')), []);
   const [id, setId] = useState(''),
     [chosen, setChosen] = useState<string[]>([]),
     [verified, setVerified] = useState(false),
@@ -107,7 +111,12 @@ export default function ControlRoom({
       </div>
       {room.error && <div className="notice error">Aggiornamento interrotto: {room.error}</div>}
       <div className="qrsetup panel">
-        <img src="/accesso-qr.svg" width={140} height={140} alt="QR per l’archivio durante il controllo" />
+        <div
+          className="qrlive"
+          role="img"
+          aria-label="QR per l’archivio durante il controllo"
+          dangerouslySetInnerHTML={{ __html: accessQr }}
+        />
         <div>
           <h2>Un QR fisso nel locale</h2>
           <p>
@@ -130,8 +139,8 @@ export default function ControlRoom({
             <a className="button secondary" href="/accesso" target="_blank" rel="noreferrer">
               Apri accesso <ExternalLink size={16} />
             </a>
-            <a className="textbutton" href="/accesso-qr.svg" download="presidio-qr.svg">
-              Scarica QR
+            <a className="textbutton" href="/cartello" target="_blank" rel="noreferrer">
+              Stampa cartello A4
             </a>
           </div>
         </div>
