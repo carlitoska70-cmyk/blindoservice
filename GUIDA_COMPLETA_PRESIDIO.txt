@@ -54,6 +54,67 @@ PRESTAZIONI
   "Esporta schede e cronologie" le scarica con /api/state?revisions=1.
 - La postazione non interroga il server mentre la scheda del browser è nascosta.
 
+MIGLIORIE DI OTTOBRE 2026
+
+Archiviazione: ogni documento, controllo o azione si può archiviare dal dialog
+di modifica. Sparisce dalle viste di lavoro e dal portale, resta nel database,
+nella cronologia e nell'esportazione; si ripristina da Azienda › Archiviati.
+
+Fascicolo PDF: in Controlli il pulsante "PDF" apre una pagina impaginata A4;
+nel dialogo di stampa scegli "Salva come PDF" (Mac e iPhone).
+
+Cartello QR: Accessi QR › "Stampa cartello A4". Il QR viene generato con
+l'indirizzo del sito in uso; stampalo dal sito pubblicato, non da localhost.
+Il portale si attiva solo dopo aver compilato l'informativa in Azienda.
+
+Promemoria delle scadenze (Telegram e/o email):
+    cd "$HOME/Desktop/blindoservice"
+    bash CONFIGURA_PROMEMORIA.command
+Poi su GitHub › Settings › Secrets and variables › Actions crea PRESIDIO_URL e
+PRESIDIO_REMINDER_TOKEN (il comando li mostra). Il workflow "Promemoria
+scadenze" parte ogni mattina e si può avviare a mano per provarlo.
+
+App su iPhone: apri il sito in Safari › Condividi › "Aggiungi alla schermata
+Home". In Documenti, "Salva offline" copia l'originale sul dispositivo per
+consultarlo senza rete (pagina /offline.html). Le copie si cancellano con "Esci".
+
+Backup dei dati online (sola lettura, da fare periodicamente):
+    cd "$HOME/Desktop/blindoservice"
+    bash BACKUP_ONLINE.command
+Crea sulla Scrivania Presidio-backup-online-<data>.tar.gz con database SQL,
+tutti gli allegati verificati SHA-256 e manifest. Conservalo cifrato.
+Ripristino del database: Cloudflare D1 conserva 30 giorni di storia
+("wrangler d1 time-travel restore DB --timestamp=... --config wrangler.jsonc");
+per gli allegati si ricaricano i file del backup nel bucket con wrangler r2.
+Prova la procedura sui dati locali con: node scripts/backup-online.mjs --local
+
+Passkey: Azienda › "Aggiungi passkey su questo dispositivo", poi nel login
+"Accedi con passkey" (Face ID / Touch ID). La password resta come riserva.
+Se perdi un dispositivo, rimuovi la sua passkey da Azienda. Se perdi la
+password, rilancia scripts/configure-admin.mjs: le vecchie sessioni decadono.
+
+Collaboratore: CONFIGURA_COLLABORATORE.command (online) o
+"node scripts/pc.mjs staff EMAIL" (locale). Il collaboratore gestisce documenti,
+azioni e valutazioni del catalogo; non vede controlli, cronologie, audio,
+accessi QR e impostazioni. I limiti sono applicati dal server.
+
+Telefono: barra in basso con 4 sezioni + "Altro". Situazione mostra una guida
+al primo avvio (nascondibile) e le prossime scadenze.
+
+PUBBLICAZIONE DI QUESTA VERSIONE (in ordine)
+1. Tabelle nuove (passkey) nel D1 online, script idempotente:
+     corepack pnpm exec wrangler d1 execute DB --remote --config wrangler.jsonc --file scripts/admin-login-schema.sql
+2. Build e pubblicazione:
+     corepack pnpm run build && corepack pnpm exec wrangler deploy --config wrangler.jsonc
+3. Facoltativo: CONFIGURA_PROMEMORIA.command e CONFIGURA_COLLABORATORE.command.
+4. Prova dal telefono: login, passkey, cartello QR, un documento "Salva offline".
+
+TEST
+corepack pnpm test         test di accesso (19) e dei moduli (admin, passkey,
+                           promemoria, catalogo, importazione, riconoscimento)
+corepack pnpm run test:e2e build + 7 test end-to-end su server isolato
+                           (primo uso: corepack pnpm exec playwright install chromium)
+
 
 1. COSA HAI RICEVUTO E DOVE SI TROVA IL CODICE
 

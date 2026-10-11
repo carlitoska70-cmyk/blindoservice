@@ -26,7 +26,17 @@ Apri http://localhost:5173/login con l'email e la password mostrate da
 | `corepack pnpm run lint` | ESLint |
 | `corepack pnpm run format` | Prettier su app, lib, db, scripts, tests |
 | `corepack pnpm test` | Test di accesso e dei moduli |
+| `corepack pnpm run test:e2e` | Build e test end-to-end (Playwright) |
 | `corepack pnpm run build` | Build di produzione in `dist/` |
+
+## Strumenti sul Mac
+
+| Comando | Cosa fa |
+| --- | --- |
+| `BACKUP_ONLINE.command` | Backup del database e degli allegati online |
+| `CONFIGURA_PROMEMORIA.command` | Promemoria delle scadenze via Telegram/email |
+| `CONFIGURA_COLLABORATORE.command` | Accesso limitato per un collaboratore |
+| `CONFIGURA_ACCESSO_LOCALE.command` | Password per l'app in locale |
 
 ## Struttura
 
