@@ -1,0 +1,26 @@
+name: Promemoria scadenze
+
+# Every morning at 05:30 UTC: 07:30 in Italy with summer time, 06:30 in winter.
+on:
+  schedule:
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Invia promemoria
+        env:
+          PRESIDIO_URL: ${{ secrets.PRESIDIO_URL }}
+          PRESIDIO_REMINDER_TOKEN: ${{ secrets.PRESIDIO_REMINDER_TOKEN }}
+        run: |
+          if [ -z "$PRESIDIO_URL" ] || [ -z "$PRESIDIO_REMINDER_TOKEN" ]; then
+            echo "Segreti PRESIDIO_URL / PRESIDIO_REMINDER_TOKEN non configurati: salto."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST "$PRESIDIO_URL/api/reminders" \
+            -H "Authorization: Bearer $PRESIDIO_REMINDER_TOKEN"

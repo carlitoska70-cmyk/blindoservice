@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArchiveRestore, Download, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Entry, Profile } from '@/lib/product';
@@ -19,6 +19,43 @@ const fields = [
   ['reviewer', 'Referente tecnico o legale'],
 ] as const;
 const yesNo = ['Sì', 'No', 'Da confermare'];
+
+type Channels = { telegram: boolean; email: boolean; scheduled: boolean };
+
+function ReminderStatus() {
+  const [channels, setChannels] = useState<Channels | null>(null);
+  useEffect(() => {
+    fetch('/api/reminders', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: any) => setChannels(d?.channels || null))
+      .catch(() => {});
+  }, []);
+  const on = (v?: boolean) => <Badge tone={v ? 'blue' : 'gray'}>{v ? 'Attivo' : 'Non configurato'}</Badge>;
+  return (
+    <section className="panel">
+      <h2>Promemoria delle scadenze</h2>
+      <p className="muted">
+        Ogni mattina Presidio può inviarti le date da riesaminare (a 30, 7, 1 giorno e il giorno stesso) e le
+        azioni in scadenza; le date superate vengono ricordate il lunedì.
+      </p>
+      <div className="archivedrow">
+        <span>Invio programmato (GitHub Actions)</span>
+        {on(channels?.scheduled)}
+      </div>
+      <div className="archivedrow">
+        <span>Telegram</span>
+        {on(channels?.telegram)}
+      </div>
+      <div className="archivedrow">
+        <span>Email</span>
+        {on(channels?.email)}
+      </div>
+      <p className="smallnote">
+        Configurazione dal Mac: CONFIGURA_PROMEMORIA.command (vedi la guida, capitolo 0).
+      </p>
+    </section>
+  );
+}
 
 export default function ProfileTab({
   draft,
@@ -120,6 +157,7 @@ export default function ProfileTab({
           Esporta schede e cronologie
         </button>
       </div>
+      <ReminderStatus />
       <section className="panel" id="archiviati">
         <div className="sectionhead">
           <h2>Archiviati</h2>

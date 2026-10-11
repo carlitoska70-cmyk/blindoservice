@@ -12,6 +12,7 @@ import {
   ScanLine,
 } from 'lucide-react';
 import { categories, checks, dayDiff, Entry, Profile } from '@/lib/product';
+import { dueItems, romeToday } from '@/lib/reminders';
 import { Badge, fmt, OpenEntry } from './shared';
 
 export default function OverviewTab({
@@ -34,6 +35,7 @@ export default function OverviewTab({
   onInspection: (id: string) => void;
 }) {
   const findings = checks(profile, documents);
+  const due = dueItems([...documents, ...tasks], romeToday());
   const toReview = documents.filter(x => {
     const d = dayDiff(x.data.expires);
     return d !== null && d <= 30;
@@ -142,6 +144,36 @@ export default function OverviewTab({
           </div>
         </section>
       </div>
+      {due.length > 0 && (
+        <section className="panel">
+          <div className="sectionhead">
+            <h2>Prossime scadenze</h2>
+            <Badge tone={due.some(x => x.days < 0) ? 'red' : 'amber'}>{due.length}</Badge>
+          </div>
+          <div className="findings">
+            {due.slice(0, 6).map(x => (
+              <button
+                key={x.id}
+                className="finding"
+                onClick={() => onTab(x.kind === 'document' ? 'archive' : 'actions')}
+              >
+                <span className={'findingicon ' + (x.days < 0 ? 'red' : 'amber')}>
+                  {x.kind === 'document' ? <CalendarDays size={18} /> : <ClipboardList size={18} />}
+                </span>
+                <span>
+                  <strong>{x.title}</strong>
+                  <small>
+                    {x.kind === 'document' ? 'Documento' : 'Azione'} ·{' '}
+                    {x.days < 0 ? `scaduto da ${-x.days} gg` : x.days === 0 ? 'oggi' : `tra ${x.days} gg`} ·{' '}
+                    {fmt(x.date)}
+                  </small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       <section className="panel recentinspections">
         <div className="sectionhead">
           <h2>Ultimi controlli</h2>
