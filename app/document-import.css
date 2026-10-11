@@ -1,0 +1,12 @@
+.document-import-dialog{max-width:1100px!important;width:calc(100vw - 24px)!important;padding:24px!important}
+.import-controls{margin-top:14px;padding:18px;background:#f4f7fc}
+.import-controls .formgrid{margin-top:16px}
+.import-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:22px;margin-top:16px;align-items:start}
+.import-list{max-height:65vh;overflow:auto;display:grid;gap:8px;position:sticky;top:0}
+.import-item{display:grid;gap:5px;text-align:left;border:1px solid #d5e0ef;border-radius:8px;padding:12px;background:white;color:#173659;overflow-wrap:anywhere}
+.import-item.selected{border-color:#214c88;background:#eaf1fc}
+.import-item small{font-size:11px;color:#63758f}
+.import-item span{font-size:12px;color:#41638a}
+.document-preview{margin-bottom:24px}
+.import-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;padding-top:20px;margin-top:20px;border-top:1px solid #d5e0ef}
+@media(max-width:700px){.import-layout{grid-template-columns:1fr}.import-list{position:static;max-height:180px}.document-import-dialog{padding:16px!important}.import-controls .formgrid{grid-template-columns:1fr}.import-actions .button{flex:1 1 45%}}

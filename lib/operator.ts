@@ -1,5 +1,16 @@
-import {env} from 'cloudflare:workers';
-import {getChatGPTUser,chatGPTSignInPath} from '@/app/chatgpt-auth';
-import {redirect} from 'next/navigation';
-export async function getOperator(){const u=await getChatGPTUser();return u&&env.PRESIDIO_OWNER_EMAIL&&u.email.toLowerCase()===env.PRESIDIO_OWNER_EMAIL.toLowerCase()?u:null}
-export async function requireOperator(){const u=await getChatGPTUser();if(!u)redirect(chatGPTSignInPath('/'));return await getOperator()}
+import { env } from 'cloudflare:workers';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { COOKIE, readSession } from './admin-auth';
+export async function getOperator() {
+  const token = (await cookies()).get(COOKIE)?.value || '';
+  if (!token) return null;
+  try {
+    return await readSession(env.DB, (env as unknown as Record<string, unknown>).PRESIDIO_ADMIN_CREDENTIALS, token);
+  } catch { return null; }
+}
+export async function requireOperator() {
+  const user = await getOperator();
+  if (!user) redirect('/login');
+  return user;
+}
