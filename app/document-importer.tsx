@@ -225,8 +225,8 @@ export default function DocumentImporter({
     setRunning(true);
     setError('');
     try {
-      let offset = 0,
-        rows: Summary[] = [];
+      let offset = 0;
+      const rows: Summary[] = [];
       while (true) {
         const page = await api(undefined, '?offset=' + offset);
         rows.push(...page.items);

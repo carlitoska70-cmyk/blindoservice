@@ -20,11 +20,14 @@ export async function roomApi(action?: string, data: any = {}) {
 }
 export function useRoom() {
   const [data, setData] = useState<any>(null),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [now, setNow] = useState(0);
   async function refresh() {
     try {
       const d = await roomApi();
       setData(d);
+      // Snapshot time of the poll, so freshness checks stay pure during render.
+      setNow(Date.now());
       setError('');
       return d;
     } catch (e) {
@@ -36,7 +39,7 @@ export function useRoom() {
     const t = setInterval(refresh, 4000);
     return () => clearInterval(t);
   }, []);
-  return { data, error, refresh };
+  return { data, error, refresh, now };
 }
 const clock = (v: string) => new Date(v).toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
 export default function ControlRoom({
@@ -59,8 +62,8 @@ export default function ControlRoom({
   const active = grants.find((g: any) => g.document_id === v?.active_doc);
   const fresh =
     v &&
-    Date.now() - Date.parse(v.last_seen) < 20000 &&
-    Date.parse(v.expires) > Date.now() &&
+    room.now - Date.parse(v.last_seen) < 20000 &&
+    Date.parse(v.expires) > room.now &&
     v.status !== 'chiusa';
   useEffect(() => {
     if (!id && room.data?.visits.length) setId(room.data.visits[0].id);
@@ -142,7 +145,7 @@ export default function ControlRoom({
               <span>{x.data.office || 'Dati non ancora inviati'}</span>
               <small>
                 {clock(x.created)} ·{' '}
-                {Date.parse(x.expires) < Date.now() ? 'scaduta' : x.status.replaceAll('_', ' ')}
+                {Date.parse(x.expires) < room.now ? 'scaduta' : x.status.replaceAll('_', ' ')}
               </small>
             </button>
           ))}
@@ -214,7 +217,7 @@ export default function ControlRoom({
                   </button>
                 </div>
               </section>
-              {['in_attesa', 'autorizzata'].includes(v.status) && Date.parse(v.expires) > Date.now() && (
+              {['in_attesa', 'autorizzata'].includes(v.status) && Date.parse(v.expires) > room.now && (
                 <section className="panel">
                   <h2>Documenti da esibire</h2>
                   <p className="muted">

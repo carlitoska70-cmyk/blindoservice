@@ -16,7 +16,8 @@ export default function DocumentCamera({
     [waiting, setWaiting] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
-    [shots, setShots] = useState<Shot[]>([]);
+    [shots, setShots] = useState<Shot[]>([]),
+    [live, setLive] = useState(false);
   const stream = useRef<MediaStream | null>(null),
     video = useRef<HTMLVideoElement | null>(null),
     pages = useRef<Shot[]>([]),
@@ -27,6 +28,7 @@ export default function DocumentCamera({
     generation.current++;
     stream.current?.getTracks().forEach(t => t.stop());
     stream.current = null;
+    setLive(false);
     setReady(false);
     setWaiting(false);
   }
@@ -73,6 +75,7 @@ export default function DocumentCamera({
         return;
       }
       stream.current = media;
+      setLive(true);
       if (video.current) {
         video.current.srcObject = media;
         await video.current.play();
@@ -215,7 +218,7 @@ export default function DocumentCamera({
         muted
         onLoadedData={() => setReady(true)}
         style={{
-          display: stream.current ? 'block' : 'none',
+          display: live ? 'block' : 'none',
           width: '100%',
           maxHeight: '50vh',
           objectFit: 'contain',

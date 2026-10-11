@@ -12,7 +12,18 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "dist/**",
+    "vendor/**",
   ]),
+  {
+    // Records are schemaless JSON validated server-side with zod; `any` is allowed
+    // at those boundaries but kept visible as a warning.
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      // Fetch-on-mount and reset-on-selection effects are intentional here.
+      "react-hooks/set-state-in-effect": "warn",
+    },
+  },
   {
     files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],
     rules: {
