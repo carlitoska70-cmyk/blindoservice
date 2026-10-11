@@ -16,6 +16,7 @@ import ControlRoom, { useRoom } from './control-room';
 import { categories, defaultProfile, Entry, Profile } from '@/lib/product';
 import { api, emptyDoc, emptyInspection, emptyTask, Kind } from './_presidio/shared';
 import { useRecorder } from './_presidio/use-recorder';
+import { clearOffline } from '@/lib/offline';
 import OverviewTab from './_presidio/overview-tab';
 import ArchiveTab from './_presidio/archive-tab';
 import ControlTab, { useNoteDraft } from './_presidio/control-tab';
@@ -163,6 +164,9 @@ export default function Presidio({ name }: { name: string }) {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }, []);
   // On narrow screens the tab bar scrolls: keep the active tab in view.
   useEffect(() => {
     document
@@ -300,12 +304,17 @@ export default function Presidio({ name }: { name: string }) {
           <form
             method="post"
             action="/api/auth/logout"
-            onSubmit={e => {
+            onSubmit={async e => {
+              e.preventDefault();
               if (
                 recorder.pending &&
                 !window.confirm('Ci sono una registrazione o un audio non salvato. Vuoi uscire comunque?')
               )
-                e.preventDefault();
+                return;
+              const form = e.currentTarget;
+              // Offline copies of documents must not outlive the session on this device.
+              await clearOffline().catch(() => {});
+              form.submit();
             }}
           >
             <button className="button secondary compact" type="submit">

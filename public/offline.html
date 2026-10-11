@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101f3b" />
+    <title>Presidio · offline</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #f3f6fb; color: #17243c; }
+      header { background: #101f3b; color: #fff; padding: 18px 16px; }
+      header strong { letter-spacing: 0.12em; }
+      main { max-width: 640px; margin: 0 auto; padding: 20px 16px 40px; }
+      .panel { background: #fff; border: 1px solid #dbe2ed; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+      h1 { font-size: 22px; margin: 0 0 6px; }
+      p { color: #5c6b82; line-height: 1.5; }
+      a.doc { display: block; padding: 14px 0; border-top: 1px solid #dbe2ed; color: #204d91; font-weight: 600; text-decoration: none; }
+      button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 1px solid #c7d2e2; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <header><strong>PRESIDIO</strong> · senza connessione</header>
+    <main>
+      <section class="panel">
+        <h1>Sei offline</h1>
+        <p>L’archivio completo richiede la connessione. Qui sotto trovi i documenti che hai reso disponibili offline su questo dispositivo.</p>
+        <button onclick="location.reload()">Riprova la connessione</button>
+      </section>
+      <section class="panel" id="docs"><p>Lettura dei documenti salvati…</p></section>
+    </main>
+    <script>
+      (async () => {
+        const box = document.getElementById('docs');
+        try {
+          const cache = await caches.open('presidio-offline-docs');
+          const keys = await cache.keys();
+          const index = JSON.parse(localStorage.getItem('presidio-offline-index') || '{}');
+          box.innerHTML = keys.length ? '<h1>Documenti offline</h1>' : '<p>Nessun documento salvato offline. Dalla sezione Documenti usa “Salva offline” mentre sei connesso.</p>';
+          for (const req of keys) {
+            const id = new URL(req.url).searchParams.get('id');
+            const a = document.createElement('a');
+            a.className = 'doc';
+            a.href = req.url;
+            a.target = '_blank';
+            a.textContent = index[id] || 'Documento ' + id.slice(0, 8);
+            box.appendChild(a);
+          }
+        } catch {
+          box.innerHTML = '<p>Questo browser non consente la lettura dei documenti offline.</p>';
+        }
+      })();
+    </script>
+  </body>
+</html>

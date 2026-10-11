@@ -1889,3 +1889,10 @@ svg {
   height: 100%;
   display: block;
 }
+
+.offlinebutton {
+  font-size: 13px;
+}
+.offlinebutton.saved {
+  color: #1f7a4d !important;
+}

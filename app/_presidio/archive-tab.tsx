@@ -1,11 +1,52 @@
 'use client';
-import { useMemo } from 'react';
-import { ChevronRight, Clock, ExternalLink, FileText, FolderOpen, Plus, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { offlineIds, offlineSupported, removeOffline, saveOffline } from '@/lib/offline';
+import {
+  ChevronRight,
+  Clock,
+  CloudCheck,
+  CloudDownload,
+  ExternalLink,
+  FileText,
+  FolderOpen,
+  Plus,
+  Search,
+} from 'lucide-react';
 import { categories, docState, Entry } from '@/lib/product';
 import { Badge, fmt, OpenEntry, Pick, SectionTitle } from './shared';
 
 const searchable = (d: any) =>
   [d.title, d.notes, d.protocol, d.holder, d.issuer, d.documentType].join(' ').toLowerCase();
+
+function useOfflineDocs() {
+  const [ids, setIds] = useState<Set<string>>(new Set()),
+    [working, setWorking] = useState(''),
+    [supported, setSupported] = useState(false);
+  useEffect(() => {
+    if (!offlineSupported()) return;
+    offlineIds()
+      .then(found => {
+        setSupported(true);
+        setIds(found);
+      })
+      .catch(() => {});
+  }, []);
+  async function toggle(fileId: string, title: string) {
+    setWorking(fileId);
+    try {
+      if (ids.has(fileId)) await removeOffline(fileId);
+      else await saveOffline(fileId, title);
+      setIds(await offlineIds());
+      toast.success(ids.has(fileId) ? 'Copia offline rimossa' : 'Disponibile offline su questo dispositivo');
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setWorking('');
+    }
+  }
+  return { ids, working, supported, toggle };
+}
 
 export default function ArchiveTab({
   documents,
@@ -22,6 +63,7 @@ export default function ArchiveTab({
   onFilter: (filter: string) => void;
   onOpen: OpenEntry;
 }) {
+  const offline = useOfflineDocs();
   const visible = useMemo(() => {
     const q = query.toLowerCase();
     return documents.filter(
@@ -74,6 +116,24 @@ export default function ArchiveTab({
                 <button className="textbutton" onClick={() => onOpen('document', x)}>
                   Scheda <ChevronRight size={15} />
                 </button>
+                {x.data.fileId && offline.supported && (
+                  <button
+                    className={'textbutton offlinebutton' + (offline.ids.has(x.data.fileId) ? ' saved' : '')}
+                    disabled={offline.working === x.data.fileId}
+                    onClick={() => offline.toggle(x.data.fileId, x.data.title)}
+                    title="Copia sul dispositivo, consultabile senza rete. Viene cancellata all’uscita."
+                  >
+                    {offline.ids.has(x.data.fileId) ? (
+                      <>
+                        <CloudCheck size={15} /> Offline
+                      </>
+                    ) : (
+                      <>
+                        <CloudDownload size={15} /> Salva offline
+                      </>
+                    )}
+                  </button>
+                )}
                 {x.data.fileId ? (
                   <a
                     href={'/api/files?id=' + x.data.fileId}
