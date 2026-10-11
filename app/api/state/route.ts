@@ -74,13 +74,19 @@ function failure(e: unknown) {
     503,
   );
 }
-export async function GET() {
+// Revisions grow with every edit and are only needed for the JSON export (?revisions=1).
+export async function GET(req?: Request) {
   try {
     const { db, owner } = await ctx();
+    const withRevisions = req ? new URL(req.url).searchParams.get('revisions') === '1' : false;
     const [p, r] = await Promise.all([
       db.prepare('SELECT data FROM profiles WHERE owner=?').bind(owner).first<{ data: string }>(),
       db
-        .prepare('SELECT id,kind,data,created,updated FROM records WHERE owner=? ORDER BY created DESC')
+        .prepare(
+          'SELECT id,kind,data,created,updated FROM records WHERE owner=?' +
+            (withRevisions ? '' : " AND kind<>'revision'") +
+            ' ORDER BY created DESC',
+        )
         .bind(owner)
         .all(),
     ]);

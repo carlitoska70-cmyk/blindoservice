@@ -1,6 +1,8 @@
 'use client';
+import { useState } from 'react';
 import { Download, Save } from 'lucide-react';
-import { Entry, Profile } from '@/lib/product';
+import { toast } from 'sonner';
+import type { Profile } from '@/lib/product';
 import { Action, Badge, download, Field, Pick, SectionTitle } from './shared';
 
 const fields = [
@@ -16,20 +18,17 @@ const fields = [
 const yesNo = ['Sì', 'No', 'Da confermare'];
 
 export default function ProfileTab({
-  profile,
   draft,
   onDraft,
-  records,
   busy,
   action,
 }: {
-  profile: Profile;
   draft: Profile;
   onDraft: (profile: Profile) => void;
-  records: Entry[];
   busy: boolean;
   action: Action;
 }) {
+  const [exporting, setExporting] = useState(false);
   return (
     <>
       <SectionTitle
@@ -89,12 +88,28 @@ export default function ProfileTab({
         </p>
         <button
           className="button secondary"
-          onClick={() =>
-            download(
-              JSON.stringify({ exportedAt: new Date().toISOString(), profile, records }, null, 2),
-              'presidio-archivio.json',
-            )
-          }
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true);
+            try {
+              // Fetched on demand so the export keeps the revision history the live view omits.
+              const r = await fetch('/api/state?revisions=1', { cache: 'no-store' });
+              const data: any = await r.json();
+              if (!r.ok) throw new Error(data.error || 'Esportazione non riuscita');
+              download(
+                JSON.stringify(
+                  { exportedAt: new Date().toISOString(), profile: data.profile, records: data.records },
+                  null,
+                  2,
+                ),
+                'presidio-archivio.json',
+              );
+            } catch (e) {
+              toast.error((e as Error).message);
+            } finally {
+              setExporting(false);
+            }
+          }}
         >
           <Download size={16} />
           Esporta schede e cronologie

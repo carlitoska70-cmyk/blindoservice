@@ -11,7 +11,7 @@ import {
   symlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 const root = process.cwd(),
@@ -311,6 +311,15 @@ try {
   const cookie2 = r.headers.get('set-cookie').split(';')[0];
   database.prepare('UPDATE visits SET expires=?').run('2020-01-01T00:00:00Z');
   assert.equal((await portal.POST(req('/api/portal', { action: 'heartbeat' }, cookie2))).status, 401);
+  passed++;
+  // Revision history stays out of the live state and is returned only for the export.
+  owner();
+  database
+    .prepare('INSERT INTO records VALUES(?,?,?,?,?,?)')
+    .run('rev1', 'owner-id', 'revision', JSON.stringify({ recordId: 'd1' }), now, now);
+  const kinds = async path => (await json(await state.GET(req(path)))).data.records.map(r => r.kind);
+  assert(!(await kinds('/api/state')).includes('revision'));
+  assert((await kinds('/api/state?revisions=1')).includes('revision'));
   passed++;
   const { catalogue, catalogueCategories } = await mod('lib/catalogue');
   assert.equal(new Set(catalogue.map(c => c.id)).size, catalogue.length);

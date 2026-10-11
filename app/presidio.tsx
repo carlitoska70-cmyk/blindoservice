@@ -468,14 +468,7 @@ export default function Presidio({ name }: { name: string }) {
                 <SourcesTab />
               </TabsContent>
               <TabsContent value="profile">
-                <ProfileTab
-                  profile={profile}
-                  draft={draftProfile}
-                  onDraft={setDraftProfile}
-                  records={records}
-                  busy={busy}
-                  action={action}
-                />
+                <ProfileTab draft={draftProfile} onDraft={setDraftProfile} busy={busy} action={action} />
               </TabsContent>
             </>
           )}
