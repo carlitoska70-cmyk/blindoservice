@@ -14,9 +14,12 @@ import {
 import { categories, checks, dayDiff, Entry, Profile } from '@/lib/product';
 import { dueItems, romeToday } from '@/lib/reminders';
 import { Badge, fmt, OpenEntry } from './shared';
+import Onboarding from './onboarding';
 
 export default function OverviewTab({
   staff = false,
+  requirements = 0,
+  portalEnabled = false,
   profile,
   documents,
   inspections,
@@ -27,6 +30,8 @@ export default function OverviewTab({
   onInspection,
 }: {
   staff?: boolean;
+  requirements?: number;
+  portalEnabled?: boolean;
   profile: Profile;
   documents: Entry[];
   inspections: Entry[];
@@ -60,6 +65,41 @@ export default function OverviewTab({
           </button>
         )}
       </div>
+      {!staff && (
+        <Onboarding
+          onTab={onTab}
+          steps={[
+            {
+              done: !!(profile.vat && profile.address),
+              title: 'Completa i dati dell’azienda',
+              text: 'Partita IVA e sede servono ai confronti con i documenti.',
+              tab: 'profile',
+              cta: 'Apri Azienda',
+            },
+            {
+              done: documents.length >= 5,
+              title: 'Carica i primi 5 documenti',
+              text: 'SCIA, HACCP, planimetria, contratti: anche da foto o cartella.',
+              tab: 'archive',
+              cta: 'Carica',
+            },
+            {
+              done: requirements > 0,
+              title: 'Valuta il catalogo',
+              text: 'Segna quali voci si applicano alla tua attività.',
+              tab: 'catalogue',
+              cta: 'Apri catalogo',
+            },
+            {
+              done: portalEnabled,
+              title: 'Attiva il QR per i controlli',
+              text: 'Stampa il cartello A4 e affiggilo nel locale.',
+              tab: 'room',
+              cta: 'Accessi QR',
+            },
+          ]}
+        />
+      )}
       <section className="panel">
         <div className="sectionhead">
           <div>

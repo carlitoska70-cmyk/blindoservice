@@ -16,6 +16,7 @@ import ControlRoom, { useRoom } from './control-room';
 import { categories, defaultProfile, Entry, Profile } from '@/lib/product';
 import { api, emptyDoc, emptyInspection, emptyTask, Kind } from './_presidio/shared';
 import { useRecorder } from './_presidio/use-recorder';
+import BottomNav from './_presidio/bottom-nav';
 import { clearOffline } from '@/lib/offline';
 import OverviewTab from './_presidio/overview-tab';
 import ArchiveTab from './_presidio/archive-tab';
@@ -124,6 +125,7 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
     [dialogUsed, setDialogUsed] = useState(false);
   const cursor = useRef('');
   const room = useRoom(!staff);
+  const visibleNav = navigation.filter(([id]) => !staff || !STAFF_HIDDEN.includes(id));
   const draft = useNoteDraft();
   const recorder = useRecorder({ setBusy, refresh: () => refresh() });
 
@@ -329,14 +331,12 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
       <Tabs value={tab} onValueChange={setTab} className="shell">
         <div className="navwrap">
           <TabsList className="navigation">
-            {navigation
-              .filter(([id]) => !staff || !STAFF_HIDDEN.includes(id))
-              .map(([id, title, Icon]) => (
-                <TabsTrigger value={id} key={id}>
-                  <Icon size={17} />
-                  {title}
-                </TabsTrigger>
-              ))}
+            {visibleNav.map(([id, title, Icon]) => (
+              <TabsTrigger value={id} key={id}>
+                <Icon size={17} />
+                {title}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
         <main className="workspace">
@@ -376,6 +376,8 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
               <TabsContent value="overview">
                 <OverviewTab
                   staff={staff}
+                  requirements={active.filter(x => x.kind === 'requirement').length}
+                  portalEnabled={!!room.data?.portal?.enabled}
                   profile={profile}
                   documents={documents}
                   inspections={inspections}
@@ -516,6 +518,16 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
           </footer>
         </main>
       </Tabs>
+      <BottomNav
+        items={visibleNav}
+        primary={
+          staff
+            ? ['overview', 'archive', 'catalogue', 'actions']
+            : ['overview', 'archive', 'control', 'actions']
+        }
+        tab={tab}
+        onTab={setTab}
+      />
       {/* Mounted on first use, then kept mounted so an import queue survives closing the dialog. */}
       <Suspense>
         {importUsed && (
