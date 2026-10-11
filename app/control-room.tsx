@@ -35,9 +35,19 @@ export function useRoom() {
     }
   }
   useEffect(() => {
+    // Poll every 4 s while the page is visible; catch up immediately on return.
     refresh();
-    const t = setInterval(refresh, 4000);
-    return () => clearInterval(t);
+    const t = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, 4000);
+    const back = () => {
+      if (!document.hidden) refresh();
+    };
+    document.addEventListener('visibilitychange', back);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', back);
+    };
   }, []);
   return { data, error, refresh, now };
 }

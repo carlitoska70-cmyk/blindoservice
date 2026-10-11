@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
   BookOpen,
   Building2,
@@ -12,10 +12,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Toaster, toast } from 'sonner';
-import CataloguePanel from './catalogue-workbench';
-import { prepareCatalogLink } from '@/lib/catalogue-matching';
 import ControlRoom, { useRoom } from './control-room';
-import DocumentImporter from './document-importer';
 import { categories, defaultProfile, Entry, Profile } from '@/lib/product';
 import { api, emptyDoc, emptyInspection, emptyTask, Kind } from './_presidio/shared';
 import { useRecorder } from './_presidio/use-recorder';
@@ -25,7 +22,15 @@ import ControlTab, { useNoteDraft } from './_presidio/control-tab';
 import ActionsTab from './_presidio/actions-tab';
 import SourcesTab from './_presidio/sources-tab';
 import ProfileTab from './_presidio/profile-tab';
-import EntryDialog from './_presidio/entry-dialog';
+
+// Heavy, on-demand parts (catalogue data, camera, PDF conversion) load in separate chunks.
+const CataloguePanel = lazy(() => import('./catalogue-workbench'));
+const DocumentImporter = lazy(() => import('./document-importer'));
+const EntryDialog = lazy(() => import('./_presidio/entry-dialog'));
+const pending = <div className="loading">Caricamento…</div>;
+// Only needed once the catalogue is in use; keeps the matching module out of the first load.
+const catalogLink = async (data: any, id: string, add: boolean) =>
+  (await import('@/lib/catalogue-matching')).prepareCatalogLink(data, id, add);
 
 const navigation = [
   ['overview', 'Situazione', ShieldCheck],
@@ -104,7 +109,9 @@ export default function Presidio({ name }: { name: string }) {
     [form, setForm] = useState<any>({}),
     [query, setQuery] = useState(''),
     [filter, setFilter] = useState('Tutte'),
-    [selected, setSelected] = useState('');
+    [selected, setSelected] = useState(''),
+    [importUsed, setImportUsed] = useState(false),
+    [dialogUsed, setDialogUsed] = useState(false);
   const room = useRoom();
   const draft = useNoteDraft();
   const recorder = useRecorder({ setBusy, refresh: () => refresh() });
@@ -181,7 +188,7 @@ export default function Presidio({ name }: { name: string }) {
             kind: 'document',
             id: doc.id,
             version: doc.updated,
-            data: prepareCatalogLink(doc.data, c.id, true),
+            data: await catalogLink(doc.data, c.id, true),
           });
           successIds.push(doc.id);
         } catch (e) {
@@ -200,6 +207,7 @@ export default function Presidio({ name }: { name: string }) {
   }
   function open(kind: Kind, entry: Entry | null = null) {
     if (kind === 'document' && !entry) {
+      setImportUsed(true);
       setImportOpen(true);
       return;
     }
@@ -209,11 +217,13 @@ export default function Presidio({ name }: { name: string }) {
         ? { ...entry.data }
         : { ...(kind === 'document' ? emptyDoc : kind === 'inspection' ? emptyInspection : emptyTask) },
     );
+    setDialogUsed(true);
     setModal(kind);
   }
   function openPrefilled(kind: Kind, data: Record<string, unknown>) {
     setEditing(null);
     setForm(data);
+    setDialogUsed(true);
     setModal(kind);
   }
   async function saveForm(e: React.FormEvent) {
@@ -351,58 +361,63 @@ export default function Presidio({ name }: { name: string }) {
                 />
               </TabsContent>
               <TabsContent value="catalogue">
-                <CataloguePanel
-                  onRefresh={refresh}
-                  onLinkMany={linkMany}
-                  records={records}
-                  profile={profile}
-                  busy={busy}
-                  onEdit={doc => open('document', doc)}
-                  onLink={(c, doc, add) =>
-                    action(
-                      {
-                        action: 'update',
-                        kind: 'document',
-                        id: doc.id,
-                        version: doc.updated,
-                        data: prepareCatalogLink(doc.data, c.id, add),
-                      },
-                      add ? 'Documento abbinato' : 'Abbinamento rimosso',
-                    )
-                  }
-                  onTask={c =>
-                    openPrefilled('task', {
-                      ...emptyTask,
-                      title: ('Verificare / reperire: ' + c.title).slice(0, 200),
-                      notes: c.condition + '\n' + c.source,
-                    })
-                  }
-                  onAdd={c =>
-                    openPrefilled('document', {
-                      ...emptyDoc,
-                      title: c.title,
-                      category: categories.includes(c.category) ? c.category : 'Altro',
-                      catalogId: c.id,
-                      catalogIds: [c.id],
-                      priority: c.priority,
-                      publicDescription: c.description,
-                      notes:
-                        'Applicabilità da verificare: ' + c.condition + '\nRiferimento di area: ' + c.source,
-                    })
-                  }
-                  onSave={(c, status, notes, old) =>
-                    action(
-                      {
-                        action: old ? 'update' : 'create',
-                        kind: 'requirement',
-                        id: old?.id,
-                        version: old?.updated,
-                        data: { catalogId: c.id, status, notes, reviewer: name },
-                      },
-                      'Valutazione salvata',
-                    )
-                  }
-                />
+                <Suspense fallback={pending}>
+                  <CataloguePanel
+                    onRefresh={refresh}
+                    onLinkMany={linkMany}
+                    records={records}
+                    profile={profile}
+                    busy={busy}
+                    onEdit={doc => open('document', doc)}
+                    onLink={async (c, doc, add) =>
+                      action(
+                        {
+                          action: 'update',
+                          kind: 'document',
+                          id: doc.id,
+                          version: doc.updated,
+                          data: await catalogLink(doc.data, c.id, add),
+                        },
+                        add ? 'Documento abbinato' : 'Abbinamento rimosso',
+                      )
+                    }
+                    onTask={c =>
+                      openPrefilled('task', {
+                        ...emptyTask,
+                        title: ('Verificare / reperire: ' + c.title).slice(0, 200),
+                        notes: c.condition + '\n' + c.source,
+                      })
+                    }
+                    onAdd={c =>
+                      openPrefilled('document', {
+                        ...emptyDoc,
+                        title: c.title,
+                        category: categories.includes(c.category) ? c.category : 'Altro',
+                        catalogId: c.id,
+                        catalogIds: [c.id],
+                        priority: c.priority,
+                        publicDescription: c.description,
+                        notes:
+                          'Applicabilità da verificare: ' +
+                          c.condition +
+                          '\nRiferimento di area: ' +
+                          c.source,
+                      })
+                    }
+                    onSave={(c, status, notes, old) =>
+                      action(
+                        {
+                          action: old ? 'update' : 'create',
+                          kind: 'requirement',
+                          id: old?.id,
+                          version: old?.updated,
+                          data: { catalogId: c.id, status, notes, reviewer: name },
+                        },
+                        'Valutazione salvata',
+                      )
+                    }
+                  />
+                </Suspense>
               </TabsContent>
               <TabsContent value="room">
                 <ControlRoom
@@ -472,17 +487,28 @@ export default function Presidio({ name }: { name: string }) {
           </footer>
         </main>
       </Tabs>
-      <DocumentImporter open={importOpen} onClose={() => setImportOpen(false)} onSaved={() => refresh()} />
-      <EntryDialog
-        kind={modal}
-        editing={editing}
-        form={form}
-        onForm={setForm}
-        busy={busy}
-        onBusy={setBusy}
-        onClose={() => setModal('')}
-        onSubmit={saveForm}
-      />
+      {/* Mounted on first use, then kept mounted so an import queue survives closing the dialog. */}
+      <Suspense>
+        {importUsed && (
+          <DocumentImporter
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+            onSaved={() => refresh()}
+          />
+        )}
+        {dialogUsed && (
+          <EntryDialog
+            kind={modal}
+            editing={editing}
+            form={form}
+            onForm={setForm}
+            busy={busy}
+            onBusy={setBusy}
+            onClose={() => setModal('')}
+            onSubmit={saveForm}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
