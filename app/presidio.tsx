@@ -143,6 +143,12 @@ export default function Presidio({ name }: { name: string }) {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // On narrow screens the tab bar scrolls: keep the active tab in view.
+  useEffect(() => {
+    document
+      .querySelector('.navigation [data-state="active"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }, [tab]);
   useModelContextSearch((q, rows) => {
     setQuery(q);
     setTab('archive');

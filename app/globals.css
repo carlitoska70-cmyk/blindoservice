@@ -632,7 +632,8 @@ svg {
   padding-left: 0 !important;
 }
 .toolbar > [data-slot='select-trigger'] {
-  min-width: 235px;
+  flex: 0 0 260px;
+  width: 260px;
 }
 .documentgrid {
   display: grid;
@@ -933,11 +934,24 @@ svg {
   cursor: pointer;
   text-align: center;
 }
+.uploadlink {
+  position: relative;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.uploadlink:focus-within {
+  outline: 2px solid #5f8dc8;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+/* Native picker stays in the label (keyboard and screen reader) but is not drawn. */
 .uploadlink input {
-  display: block;
-  max-width: 220px;
-  font-size: 12px;
-  margin-top: 9px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 .notice {
   border: 1px solid #d5e0f0;
@@ -1159,6 +1173,16 @@ svg {
   }
 }
 @media (max-width: 720px) {
+  .navigation {
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+    scroll-padding-inline: 24px;
+    padding-right: 56px !important;
+  }
+  .navigation::-webkit-scrollbar {
+    display: none;
+  }
   .masthead {
     padding: 17px 18px;
   }
@@ -1287,7 +1311,8 @@ svg {
     flex-direction: column;
   }
   .toolbar > [data-slot='select-trigger'] {
-    min-width: 0;
+    flex: none;
+    width: 100%;
   }
   .documentgrid,
   .sourcegrid {
