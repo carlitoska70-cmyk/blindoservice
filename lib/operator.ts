@@ -24,7 +24,9 @@ export async function requireMember() {
   return user;
 }
 export async function requireOperator() {
-  const user = await getOperator();
+  const user = await getMember();
   if (!user) redirect('/login');
+  // A signed-in collaborator goes back to the archive instead of the login page.
+  if (user.role !== 'owner') redirect('/');
   return user;
 }

@@ -93,7 +93,7 @@ export default function OverviewTab({
             {
               done: portalEnabled,
               title: 'Attiva il QR per i controlli',
-              text: 'Stampa il cartello A4 e affiggilo nel locale.',
+              text: 'Prima compila l’informativa in Azienda, poi stampa il cartello A4.',
               tab: 'room',
               cta: 'Accessi QR',
             },

@@ -48,3 +48,7 @@ next-env.d.ts
 # Segreti e dati della versione PC
 .dev.vars*
 /backups/
+
+# Test end-to-end
+/test-results/
+/playwright-report/

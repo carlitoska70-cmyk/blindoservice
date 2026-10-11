@@ -12,10 +12,11 @@
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "format": "prettier --write app lib db hooks scripts tests",
-    "format:check": "prettier --check app lib db hooks scripts tests",
+    "format": "prettier --write app lib db hooks scripts tests e2e",
+    "format:check": "prettier --check app lib db hooks scripts tests e2e",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/access-control.mjs && for t in scripts/test-*.mjs; do node $t || exit 1; done"
+    "test": "node tests/access-control.mjs && for t in scripts/test-*.mjs; do node $t || exit 1; done",
+    "test:e2e": "pnpm run build && playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -47,6 +48,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "4.20260515.1",
+    "@playwright/test": "1.55.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
