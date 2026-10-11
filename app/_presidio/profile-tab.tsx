@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ArchiveRestore, Download, Save } from 'lucide-react';
+import { ArchiveRestore, Download, Fingerprint, Save } from 'lucide-react';
+import { deletePasskey, passkeySupported, registerPasskey } from '@/lib/passkey-client';
 import { toast } from 'sonner';
 import type { Entry, Profile } from '@/lib/product';
 import { Action, Badge, download, Field, fmt, Pick, SectionTitle } from './shared';
@@ -19,6 +20,87 @@ const fields = [
   ['reviewer', 'Referente tecnico o legale'],
 ] as const;
 const yesNo = ['Sì', 'No', 'Da confermare'];
+
+type Passkey = { id: string; label: string; created: string; last_used: string | null };
+
+function PasskeyPanel() {
+  const [list, setList] = useState<Passkey[] | null>(null),
+    [busy, setBusy] = useState(false);
+  const load = () =>
+    fetch('/api/auth/passkey', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : { passkeys: [] }))
+      .then((d: any) => setList(d.passkeys))
+      .catch(() => setList([]));
+  useEffect(() => {
+    load();
+  }, []);
+  if (!passkeySupported()) return null;
+  return (
+    <section className="panel">
+      <div className="sectionhead">
+        <h2>Accesso con passkey</h2>
+        <Badge tone={list?.length ? 'blue' : 'gray'}>{list?.length ? 'Attivo' : 'Non configurato'}</Badge>
+      </div>
+      <p className="muted">
+        Entra con Face ID, Touch ID o il PIN del dispositivo, senza digitare la password. La password resta
+        valida come accesso di riserva. Se perdi un dispositivo, rimuovi qui la sua passkey.
+      </p>
+      {list?.map(x => (
+        <div className="archivedrow" key={x.id}>
+          <span>
+            <strong>{x.label}</strong>
+            <small>
+              Aggiunta il {fmt(x.created)}
+              {x.last_used ? ' · ultimo uso ' + fmt(x.last_used) : ''}
+            </small>
+          </span>
+          <button
+            className="button secondary compact"
+            disabled={busy}
+            onClick={async () => {
+              if (!window.confirm('Rimuovere questa passkey? Su quel dispositivo servirà la password.'))
+                return;
+              setBusy(true);
+              try {
+                await deletePasskey(x.id);
+                await load();
+                toast.success('Passkey rimossa');
+              } catch (e) {
+                toast.error((e as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Rimuovi
+          </button>
+        </div>
+      ))}
+      <button
+        className="button secondary"
+        disabled={busy}
+        style={{ marginTop: 12 }}
+        onClick={async () => {
+          const label = window.prompt('Nome del dispositivo (es. iPhone di Carlo)', 'iPhone');
+          if (label === null) return;
+          setBusy(true);
+          try {
+            await registerPasskey(label);
+            await load();
+            toast.success('Passkey aggiunta');
+          } catch (e) {
+            const err = e as Error;
+            toast.error(err.name === 'NotAllowedError' ? 'Registrazione annullata' : err.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Fingerprint size={16} /> Aggiungi passkey su questo dispositivo
+      </button>
+    </section>
+  );
+}
 
 type Channels = { telegram: boolean; email: boolean; scheduled: boolean };
 
@@ -157,6 +239,7 @@ export default function ProfileTab({
           Esporta schede e cronologie
         </button>
       </div>
+      <PasskeyPanel />
       <ReminderStatus />
       <section className="panel" id="archiviati">
         <div className="sectionhead">

@@ -12,7 +12,7 @@ export interface Statement {
 export interface Database {
   prepare(sql: string): Statement;
 }
-type Config = { email: string; keyHash: string };
+export type Config = { email: string; keyHash: string };
 export async function digest(value: string) {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(bytes), x => x.toString(16).padStart(2, '0')).join('');
@@ -51,7 +51,7 @@ function equal(a: string, b: string) {
 async function fingerprint(c: Config) {
   return digest(JSON.stringify(c));
 }
-function now() {
+export function now() {
   return Math.floor(Date.now() / 1000);
 }
 export function cookie(token: string, clear = false) {
@@ -81,7 +81,7 @@ function redirect(path: string, setCookie?: string) {
 }
 // Plain HTTP is accepted only on loopback, for the local development server.
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
-function sameOrigin(req: Request) {
+export function sameOrigin(req: Request) {
   const url = new URL(req.url);
   return (
     req.method === 'POST' &&
@@ -90,7 +90,7 @@ function sameOrigin(req: Request) {
     req.headers.get('sec-fetch-site') !== 'cross-site'
   );
 }
-async function limitedBody(req: Request) {
+export async function limitedBody(req: Request) {
   const max = 4096;
   if (Number(req.headers.get('content-length') || 0) > max) throw new Error('BODY');
   if (!req.body) return '';
@@ -131,7 +131,7 @@ async function limit(db: Database, key: string, max: number) {
     .first<{ count: number }>();
   return !!row && row.count <= max;
 }
-async function ownerId(db: Database) {
+export async function ownerId(db: Database) {
   const identity = await db
     .prepare('SELECT owner FROM admin_identity WHERE slot=1')
     .first<{ owner: string }>();
@@ -163,6 +163,31 @@ export async function readSession(db: Database | undefined, rawConfig: unknown, 
     .first<{ owner: string }>();
   return row ? { userId: row.owner, email: c.email, displayName: c.email, fullName: null } : null;
 }
+/** Shared by password and passkey login: global and per-IP attempt limits (15 min window). */
+export async function rateLimited(req: Request, db: Database) {
+  await db.prepare('DELETE FROM admin_login_limits WHERE expires<=?').bind(now()).run();
+  return (
+    !(await limit(db, 'global', 60)) ||
+    !(await limit(db, 'ip:' + (req.headers.get('cf-connecting-ip') || 'unknown'), 10))
+  );
+}
+/** Creates a session bound to the current credential configuration; returns the cookie token. */
+export async function startSession(req: Request, db: Database, c: Config, owner: string) {
+  const token = randomKey(),
+    old = cookieToken(req);
+  if (/^[A-Za-z0-9_-]{43}$/.test(old))
+    await db
+      .prepare('DELETE FROM admin_sessions WHERE token_hash=?')
+      .bind(await digest(old))
+      .run();
+  await db
+    .prepare('INSERT INTO admin_sessions(token_hash,owner,expires,credential_hash) VALUES(?,?,?,?)')
+    .bind(await digest(token), owner, now() + SESSION_SECONDS, await fingerprint(c))
+    .run();
+  await db.prepare('DELETE FROM admin_sessions WHERE expires<=?').bind(now()).run();
+  await db.prepare('DELETE FROM admin_login_limits WHERE expires<=?').bind(now()).run();
+  return token;
+}
 export async function login(req: Request, db: Database | undefined, rawConfig: unknown) {
   if (!sameOrigin(req)) return reply('Origine non valida. Torna alla pagina di accesso HTTPS.', 403);
   if (req.headers.get('content-type')?.split(';')[0].trim() !== 'application/x-www-form-urlencoded')
@@ -170,15 +195,10 @@ export async function login(req: Request, db: Database | undefined, rawConfig: u
   try {
     const c = config(rawConfig);
     if (!db) throw new Error('AUTH_STORAGE');
-    await db.prepare('DELETE FROM admin_login_limits WHERE expires<=?').bind(now()).run();
-    if (
-      !(await limit(db, 'global', 60)) ||
-      !(await limit(db, 'ip:' + (req.headers.get('cf-connecting-ip') || 'unknown'), 10))
-    ) {
+    if (await rateLimited(req, db))
       return reply('Troppi tentativi. Attendi 15 minuti, poi torna alla pagina di accesso.', 429, {
         'Retry-After': '900',
       });
-    }
     const data = new URLSearchParams(await limitedBody(req));
     const email = (data.get('email') || '').trim().toLowerCase(),
       password = data.get('password') || '';
@@ -191,20 +211,7 @@ export async function login(req: Request, db: Database | undefined, rawConfig: u
       !matches
     )
       return redirect('/login?error=credentials');
-    const owner = await ownerId(db),
-      token = randomKey(),
-      old = cookieToken(req);
-    if (/^[A-Za-z0-9_-]{43}$/.test(old))
-      await db
-        .prepare('DELETE FROM admin_sessions WHERE token_hash=?')
-        .bind(await digest(old))
-        .run();
-    await db
-      .prepare('INSERT INTO admin_sessions(token_hash,owner,expires,credential_hash) VALUES(?,?,?,?)')
-      .bind(await digest(token), owner, now() + SESSION_SECONDS, await fingerprint(c))
-      .run();
-    await db.prepare('DELETE FROM admin_sessions WHERE expires<=?').bind(now()).run();
-    await db.prepare('DELETE FROM admin_login_limits WHERE expires<=?').bind(now()).run();
+    const token = await startSession(req, db, c, await ownerId(db));
     return redirect('/', cookie(token));
   } catch (error) {
     if (error instanceof Error && error.message === 'BODY') return reply('Richiesta troppo grande.', 413);

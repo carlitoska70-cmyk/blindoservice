@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getOperator } from '@/lib/operator';
+import PasskeyButton from './passkey-button';
 export const dynamic = 'force-dynamic';
 export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   if (await getOperator()) redirect('/');
@@ -32,6 +33,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             Entra nell’archivio
           </button>
         </form>
+        <PasskeyButton />
         <p className="smallnote">
           Sessione di 8 ore. Usa “Esci” quando hai finito, soprattutto sui dispositivi condivisi.
         </p>
