@@ -1856,3 +1856,25 @@ svg {
     animation: none;
   }
 }
+
+/* Archive */
+.archivebutton {
+  margin-right: auto;
+  color: #9a3b32 !important;
+}
+.archivedrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.archivedrow span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.archivedrow small {
+  color: #657188;
+}

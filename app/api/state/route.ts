@@ -1,64 +1,12 @@
 import { env } from 'cloudflare:workers';
 import { getOperator as getChatGPTUser } from '@/lib/operator';
 import { z } from 'zod';
-import { defaultProfile, categories } from '@/lib/product';
-import { confirmedDocumentSchema as doc } from '@/lib/document-schema';
+import { defaultProfile } from '@/lib/product';
+import { archivableKinds, profileSchema, recordSchemas } from '@/lib/schemas';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers });
 const str = (max = 4000) => z.string().max(max);
-const date = z.union([
-  z.literal(''),
-  z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .refine(v => !isNaN(Date.parse(v))),
-]);
-const inspection = z.object({
-  authority: str(200).min(1),
-  scope: str(200).min(1),
-  officers: str(1000),
-  reference: str(200),
-  status: z.enum(['aperto', 'concluso']),
-  outcome: str(),
-  started: str(40),
-  ended: str(40),
-});
-const event = z.object({
-  inspectionId: str(100).min(1),
-  speaker: str(200),
-  text: str().min(1),
-  tag: z.enum(['Richiesta', 'Nota', 'Da verificare', 'Documento esibito', 'Registrazione']),
-  offset: z.number().min(0).max(864000),
-  fileId: str(100).optional(),
-  fileName: str(255).optional(),
-});
-const requirement = z.object({
-  catalogId: str(100),
-  status: z.enum(['Da valutare', 'Applicabile', 'Non applicabile']),
-  notes: str(),
-  reviewer: str(200),
-});
-const task = z.object({
-  title: str(200).min(1),
-  responsible: str(200),
-  due: date,
-  notes: str(),
-  done: z.boolean(),
-});
-const profile = z.object({
-  name: str(150).min(1),
-  legalName: str(200),
-  vat: str(30),
-  address: str(300),
-  city: str(100),
-  region: str(100),
-  activity: str(200),
-  staff: z.enum(['Sì', 'No', 'Da confermare']),
-  dehors: z.enum(['Sì', 'No', 'Da confermare']),
-  reviewer: str(200),
-  portalNotice: str(12000).optional(),
-});
 async function ctx() {
   const u = await getChatGPTUser();
   if (!u) throw new Error('AUTH');
@@ -78,21 +26,32 @@ function failure(e: unknown) {
 export async function GET(req?: Request) {
   try {
     const { db, owner } = await ctx();
-    const withRevisions = req ? new URL(req.url).searchParams.get('revisions') === '1' : false;
+    const params = req ? new URL(req.url).searchParams : new URLSearchParams();
+    const withRevisions = params.get('revisions') === '1';
+    // Incremental sync: ?since=<last cursor> returns only records changed at or after it.
+    // Records are never hard-deleted (archive is an update), so merging by id is complete.
+    const since = params.get('since') || '';
+    if (since && !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(since))
+      return json({ error: 'Cursore non valido' }, 400);
     const [p, r] = await Promise.all([
       db.prepare('SELECT data FROM profiles WHERE owner=?').bind(owner).first<{ data: string }>(),
       db
         .prepare(
           'SELECT id,kind,data,created,updated FROM records WHERE owner=?' +
             (withRevisions ? '' : " AND kind<>'revision'") +
+            (since ? ' AND updated>=?' : '') +
             ' ORDER BY created DESC',
         )
-        .bind(owner)
+        .bind(...(since ? [owner, since] : [owner]))
         .all(),
     ]);
+    const records = r.results.map((x: any) => ({ ...x, data: JSON.parse(x.data) }));
+    const cursor = records.reduce((max: string, x: any) => (x.updated > max ? x.updated : max), since);
     return json({
       profile: p ? JSON.parse(p.data) : defaultProfile,
-      records: r.results.map((x: any) => ({ ...x, data: JSON.parse(x.data) })),
+      records,
+      cursor,
+      partial: !!since,
     });
   } catch (e) {
     return failure(e);
@@ -110,7 +69,7 @@ export async function POST(req: Request) {
     const b = JSON.parse(raw);
     const now = new Date().toISOString();
     if (b.action === 'profile') {
-      const data = profile.parse(b.data);
+      const data = profileSchema.parse(b.data);
       await db
         .prepare(
           'INSERT INTO profiles(owner,data,updated) VALUES(?,?,?) ON CONFLICT(owner) DO UPDATE SET data=excluded.data,updated=excluded.updated',
@@ -119,8 +78,31 @@ export async function POST(req: Request) {
         .run();
       return json({ ok: true });
     }
+    if (b.action === 'archive' || b.action === 'restore') {
+      const kind = z.enum(archivableKinds).parse(b.kind);
+      const id = str(100).parse(b.id);
+      const version = str(40).parse(b.version);
+      const archived = b.action === 'archive';
+      const results = await db.batch([
+        db
+          .prepare(
+            "INSERT INTO records(id,owner,kind,data,created,updated) SELECT ?,owner,'revision',json_object('recordId',id,'kind',kind,'data',json(data),'updated',updated),?,? FROM records WHERE id=? AND owner=? AND kind=? AND updated=?",
+          )
+          .bind(crypto.randomUUID(), now, now, id, owner, kind, version),
+        db
+          .prepare(
+            archived
+              ? "UPDATE records SET data=json_set(data,'$.archivedAt',?),updated=? WHERE id=? AND owner=? AND kind=? AND updated=?"
+              : "UPDATE records SET data=json_remove(data,'$.archivedAt'),updated=? WHERE id=? AND owner=? AND kind=? AND updated=?",
+          )
+          .bind(...(archived ? [now, now, id, owner, kind, version] : [now, id, owner, kind, version])),
+      ]);
+      if (!results[1].meta.changes)
+        return json({ error: 'Il record è cambiato. Ricarica i dati prima di riprovare.' }, 409);
+      return json({ ok: true, id });
+    }
     const kind = z.enum(['document', 'inspection', 'event', 'task', 'requirement']).parse(b.kind);
-    const data = { document: doc, inspection, event, task, requirement }[kind].parse(b.data);
+    const data = recordSchemas[kind].parse(b.data);
     if (kind === 'event') {
       const parent = await db
         .prepare('SELECT data FROM records WHERE id=? AND owner=? AND kind=?')
@@ -151,12 +133,17 @@ export async function POST(req: Request) {
           )
           .bind(crypto.randomUUID(), now, now, id, owner, kind, version),
         db
-          .prepare('UPDATE records SET data=?,updated=? WHERE id=? AND owner=? AND kind=? AND updated=?')
+          .prepare(
+            "UPDATE records SET data=?,updated=? WHERE id=? AND owner=? AND kind=? AND updated=? AND json_extract(data,'$.archivedAt') IS NULL",
+          )
           .bind(JSON.stringify(data), now, id, owner, kind, version),
       ]);
       const r = results[1];
       if (!r.meta.changes)
-        return json({ error: 'Il record è cambiato. Ricarica i dati prima di salvarlo.' }, 409);
+        return json(
+          { error: 'Il record è cambiato o è archiviato. Ricarica i dati prima di salvarlo.' },
+          409,
+        );
       return json({ ok: true, id });
     }
     if (b.action !== 'create') return json({ error: 'Operazione non valida' }, 400);

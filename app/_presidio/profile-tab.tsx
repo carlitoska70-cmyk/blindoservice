@@ -1,9 +1,12 @@
 'use client';
 import { useState } from 'react';
-import { Download, Save } from 'lucide-react';
+import { ArchiveRestore, Download, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Profile } from '@/lib/product';
-import { Action, Badge, download, Field, Pick, SectionTitle } from './shared';
+import type { Entry, Profile } from '@/lib/product';
+import { Action, Badge, download, Field, fmt, Pick, SectionTitle } from './shared';
+
+const kindLabel: Record<string, string> = { document: 'Documento', inspection: 'Controllo', task: 'Azione' };
+const entryTitle = (x: Entry) => x.data.title || x.data.authority || 'Senza titolo';
 
 const fields = [
   ['name', 'Nome commerciale'],
@@ -20,11 +23,13 @@ const yesNo = ['Sì', 'No', 'Da confermare'];
 export default function ProfileTab({
   draft,
   onDraft,
+  archived,
   busy,
   action,
 }: {
   draft: Profile;
   onDraft: (profile: Profile) => void;
+  archived: Entry[];
   busy: boolean;
   action: Action;
 }) {
@@ -115,6 +120,39 @@ export default function ProfileTab({
           Esporta schede e cronologie
         </button>
       </div>
+      <section className="panel" id="archiviati">
+        <div className="sectionhead">
+          <h2>Archiviati</h2>
+          <Badge>{archived.length}</Badge>
+        </div>
+        <p className="muted">
+          Le schede archiviate non compaiono nelle viste di lavoro né nel portale dei controlli. Restano nel
+          database, nella cronologia e nell’esportazione: puoi ripristinarle in qualsiasi momento.
+        </p>
+        {archived.map(x => (
+          <div className="archivedrow" key={x.id}>
+            <span>
+              <strong>{entryTitle(x)}</strong>
+              <small>
+                {kindLabel[x.kind] || x.kind} · archiviata il {fmt(x.data.archivedAt)}
+              </small>
+            </span>
+            <button
+              className="button secondary compact"
+              disabled={busy}
+              onClick={() =>
+                action(
+                  { action: 'restore', kind: x.kind, id: x.id, version: x.updated },
+                  'Scheda ripristinata',
+                )
+              }
+            >
+              <ArchiveRestore size={15} /> Ripristina
+            </button>
+          </div>
+        ))}
+        {!archived.length && <p className="smallnote">Nessuna scheda archiviata.</p>}
+      </section>
     </>
   );
 }

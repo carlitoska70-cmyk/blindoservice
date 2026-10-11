@@ -1,5 +1,5 @@
 'use client';
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
   Building2,
@@ -31,6 +31,12 @@ const pending = <div className="loading">Caricamento…</div>;
 // Only needed once the catalogue is in use; keeps the matching module out of the first load.
 const catalogLink = async (data: any, id: string, add: boolean) =>
   (await import('@/lib/catalogue-matching')).prepareCatalogLink(data, id, add);
+
+function mergeRecords(prev: Entry[], changed: Entry[]) {
+  const byId = new Map(prev.map(x => [x.id, x]));
+  for (const x of changed) byId.set(x.id, x);
+  return [...byId.values()].sort((a, b) => b.created.localeCompare(a.created));
+}
 
 const navigation = [
   ['overview', 'Situazione', ShieldCheck],
@@ -112,6 +118,7 @@ export default function Presidio({ name }: { name: string }) {
     [selected, setSelected] = useState(''),
     [importUsed, setImportUsed] = useState(false),
     [dialogUsed, setDialogUsed] = useState(false);
+  const cursor = useRef('');
   const room = useRoom();
   const draft = useNoteDraft();
   const recorder = useRecorder({ setBusy, refresh: () => refresh() });
@@ -123,16 +130,22 @@ export default function Presidio({ name }: { name: string }) {
         Date.parse(v.expires) > room.now &&
         room.now - Date.parse(v.last_seen) < 20000,
     ) || [];
-  const documents = useMemo(() => records.filter(x => x.kind === 'document'), [records]);
-  const inspections = useMemo(() => records.filter(x => x.kind === 'inspection'), [records]);
-  const tasks = useMemo(() => records.filter(x => x.kind === 'task'), [records]);
+  // Archived records are kept (and restorable) but hidden from every working view.
+  const active = useMemo(() => records.filter(x => !x.data?.archivedAt), [records]);
+  const archived = useMemo(() => records.filter(x => x.data?.archivedAt), [records]);
+  const documents = useMemo(() => active.filter(x => x.kind === 'document'), [active]);
+  const inspections = useMemo(() => active.filter(x => x.kind === 'inspection'), [active]);
+  const tasks = useMemo(() => active.filter(x => x.kind === 'task'), [active]);
 
   async function refresh(initial = false) {
     try {
-      const data = await api();
+      // After the first load only records changed since the last cursor are fetched.
+      const since = initial ? '' : cursor.current;
+      const data = await api(undefined, since ? '?since=' + encodeURIComponent(since) : '');
       setProfile(data.profile);
       if (initial) setDraftProfile(data.profile);
-      setRecords(data.records);
+      setRecords(prev => (data.partial ? mergeRecords(prev, data.records) : data.records));
+      if (data.cursor) cursor.current = data.cursor;
       setError('');
       return data;
     } catch (e) {
@@ -160,6 +173,7 @@ export default function Presidio({ name }: { name: string }) {
     setQuery(q);
     setTab('archive');
     setRecords(rows);
+    cursor.current = rows.reduce((max, x) => (x.updated > max ? x.updated : max), '');
   });
 
   async function action(body: unknown, message: string) {
@@ -365,7 +379,7 @@ export default function Presidio({ name }: { name: string }) {
                   <CataloguePanel
                     onRefresh={refresh}
                     onLinkMany={linkMany}
-                    records={records}
+                    records={active}
                     profile={profile}
                     busy={busy}
                     onEdit={doc => open('document', doc)}
@@ -446,7 +460,7 @@ export default function Presidio({ name }: { name: string }) {
               <TabsContent value="control">
                 <ControlTab
                   profile={profile}
-                  records={records}
+                  records={active}
                   documents={documents}
                   inspections={inspections}
                   selected={selected}
@@ -468,7 +482,13 @@ export default function Presidio({ name }: { name: string }) {
                 <SourcesTab />
               </TabsContent>
               <TabsContent value="profile">
-                <ProfileTab draft={draftProfile} onDraft={setDraftProfile} busy={busy} action={action} />
+                <ProfileTab
+                  draft={draftProfile}
+                  onDraft={setDraftProfile}
+                  archived={archived}
+                  busy={busy}
+                  action={action}
+                />
               </TabsContent>
             </>
           )}
@@ -499,6 +519,13 @@ export default function Presidio({ name }: { name: string }) {
             onBusy={setBusy}
             onClose={() => setModal('')}
             onSubmit={saveForm}
+            onArchive={async entry => {
+              const ok = await action(
+                { action: 'archive', kind: entry.kind, id: entry.id, version: entry.updated },
+                'Scheda archiviata',
+              );
+              if (ok) setModal('');
+            }}
           />
         )}
       </Suspense>

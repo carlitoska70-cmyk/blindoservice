@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main, riordino, migliorie]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install (lockfile)
+        run: |
+          corepack enable
+          corepack pnpm install --frozen-lockfile
+      - name: Format
+        run: corepack pnpm run format:check
+      - name: Typecheck
+        run: corepack pnpm run typecheck
+      - name: Lint
+        run: corepack pnpm run lint
+      - name: Tests
+        run: corepack pnpm test
+      - name: Build
+        run: corepack pnpm run build

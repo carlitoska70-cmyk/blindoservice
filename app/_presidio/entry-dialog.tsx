@@ -1,5 +1,5 @@
 'use client';
-import { Save } from 'lucide-react';
+import { Archive, Save } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import type { Entry } from '@/lib/product';
 import DocumentEditor from '../document-editor';
@@ -20,6 +20,7 @@ export default function EntryDialog({
   onBusy,
   onClose,
   onSubmit,
+  onArchive,
 }: {
   kind: Kind | '';
   editing: Entry | null;
@@ -29,6 +30,7 @@ export default function EntryDialog({
   onBusy: (busy: boolean) => void;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
+  onArchive: (entry: Entry) => void;
 }) {
   const text = (key: string, max: number, extra: Record<string, unknown> = {}) => ({
     maxLength: max,
@@ -121,6 +123,23 @@ export default function EntryDialog({
             </>
           )}
           <div className="formfooter">
+            {editing && (
+              <button
+                type="button"
+                className="textbutton archivebutton"
+                disabled={busy}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      'Archiviare questa scheda? Sparirà dalle viste di lavoro e dal portale; potrai ripristinarla da Azienda › Archiviati.',
+                    )
+                  )
+                    onArchive(editing);
+                }}
+              >
+                <Archive size={15} /> Archivia
+              </button>
+            )}
             <button type="button" className="button secondary" disabled={busy} onClick={onClose}>
               Annulla
             </button>

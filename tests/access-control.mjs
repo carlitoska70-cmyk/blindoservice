@@ -80,6 +80,7 @@ const files = [
   'lib/catalogue.ts',
   'lib/product.ts',
   'lib/document-schema.ts',
+  'lib/schemas.ts',
   'lib/portal-server.ts',
   'app/api/state/route.ts',
   'app/api/files/route.ts',
@@ -320,6 +321,66 @@ try {
   const kinds = async path => (await json(await state.GET(req(path)))).data.records.map(r => r.kind);
   assert(!(await kinds('/api/state')).includes('revision'));
   assert((await kinds('/api/state?revisions=1')).includes('revision'));
+  passed++;
+  // Archive / restore: archived records cannot be edited or shown to inspectors.
+  const post = body => state.POST(req('/api/state', body));
+  const d2v = () => database.prepare('SELECT updated FROM records WHERE id=?').get('d2').updated;
+  const before = d2v();
+  assert.equal((await post({ action: 'archive', kind: 'event', id: 'd2', version: before })).status, 400);
+  assert.equal((await post({ action: 'archive', kind: 'document', id: 'd2', version: 'stale' })).status, 409);
+  assert.equal((await post({ action: 'archive', kind: 'document', id: 'd2', version: before })).status, 200);
+  const archivedData = JSON.parse(database.prepare('SELECT data FROM records WHERE id=?').get('d2').data);
+  assert(archivedData.archivedAt);
+  const docBody = {
+    title: 'x',
+    category: 'Titoli e SCIA',
+    expires: '',
+    issued: '',
+    vat: '',
+    address: '',
+    notes: '',
+    fileId: '',
+    fileName: '',
+    reviewed: false,
+    reviewer: '',
+    protocol: '',
+  };
+  assert.equal(
+    (await post({ action: 'update', kind: 'document', id: 'd2', version: d2v(), data: docBody })).status,
+    409,
+  );
+  r = await portal.POST(req('/api/portal', { action: 'start', portal: p }, ''));
+  const cookie3 = r.headers.get('set-cookie').split(';')[0];
+  const visit3 = (await r.json()).visit.id;
+  assert.equal(
+    (await portal.POST(req('/api/portal', { action: 'identify', data: identity }, cookie3))).status,
+    200,
+  );
+  owner();
+  assert.equal(
+    (
+      await room.POST(
+        req('/api/control-room', {
+          action: 'grants',
+          visitId: visit3,
+          identityVerified: true,
+          documentIds: ['d2'],
+        }),
+      )
+    ).status,
+    400,
+  );
+  // Incremental sync returns the archived record (changed) and a cursor.
+  const full = (await json(await state.GET(req('/api/state')))).data;
+  const delta = (
+    await json(await state.GET(req('/api/state?since=' + encodeURIComponent(archivedData.archivedAt))))
+  ).data;
+  assert(
+    delta.partial && delta.records.some(x => x.id === 'd2') && delta.records.length < full.records.length,
+  );
+  assert.equal((await state.GET(req('/api/state?since=yesterday'))).status, 400);
+  assert.equal((await post({ action: 'restore', kind: 'document', id: 'd2', version: d2v() })).status, 200);
+  assert(!JSON.parse(database.prepare('SELECT data FROM records WHERE id=?').get('d2').data).archivedAt);
   passed++;
   const { catalogue, catalogueCategories } = await mod('lib/catalogue');
   assert.equal(new Set(catalogue.map(c => c.id)).size, catalogue.length);

@@ -88,6 +88,8 @@ export async function POST(req: Request) {
       const details: any[] = [];
       for (const doc of docs) {
         const d = JSON.parse(doc.data);
+        if (d.archivedAt)
+          return response({ error: 'Documento archiviato: ripristinalo prima di esibirlo' }, 400);
         if (!d.fileId) return response({ error: 'Allega un originale a ' + d.title }, 400);
         const f = await db()
           .prepare('SELECT mime FROM files WHERE id=? AND owner=?')

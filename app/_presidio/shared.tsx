@@ -110,9 +110,9 @@ export function SectionTitle({
   );
 }
 
-export async function api(body?: unknown) {
+export async function api(body?: unknown, query = '') {
   const r = await fetch(
-    '/api/state',
+    '/api/state' + query,
     body
       ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
       : { cache: 'no-store' },
