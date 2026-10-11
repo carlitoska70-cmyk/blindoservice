@@ -79,11 +79,13 @@ function reply(message: string, status: number, extra: Record<string, string> = 
 function redirect(path: string, setCookie?: string) {
   return reply('', 303, { Location: path, ...(setCookie ? { 'Set-Cookie': setCookie } : {}) });
 }
+// Plain HTTP is accepted only on loopback, for the local development server.
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 function sameOrigin(req: Request) {
   const url = new URL(req.url);
   return (
     req.method === 'POST' &&
-    url.protocol === 'https:' &&
+    (url.protocol === 'https:' || (url.protocol === 'http:' && LOOPBACK.has(url.hostname))) &&
     req.headers.get('origin') === url.origin &&
     req.headers.get('sec-fetch-site') !== 'cross-site'
   );

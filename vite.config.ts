@@ -13,9 +13,9 @@ const { d1, r2 } = hostingConfig;
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const managedLinux = readExecutionProfile() === "managed-linux";
 
+// Flags and name come from wrangler.local.json; wrangler.jsonc is production-only.
 const localBindingConfig = {
   main: "vinext/server/fetch-handler",
-  compatibility_flags: ["nodejs_compat"],
   d1_databases: d1
     ? [
         {
@@ -61,6 +61,7 @@ export default defineConfig(async () => {
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
         inspectorPort: false,
+        configPath: "./wrangler.local.json",
         config: localBindingConfig,
       }),
     ],

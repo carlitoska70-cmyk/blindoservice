@@ -147,17 +147,15 @@ try {
   assert.equal((await state.GET()).status, 401);
   passed++;
   owner();
-  database
-    .prepare('INSERT INTO profiles VALUES(?,?,?)')
-    .run(
-      'owner-id',
-      JSON.stringify({
-        name: 'Test company',
-        portalNotice: 'Informativa di prova. '.repeat(20),
-        vat: 'SECRET_VAT',
-      }),
-      new Date().toISOString(),
-    );
+  database.prepare('INSERT INTO profiles VALUES(?,?,?)').run(
+    'owner-id',
+    JSON.stringify({
+      name: 'Test company',
+      portalNotice: 'Informativa di prova. '.repeat(20),
+      vat: 'SECRET_VAT',
+    }),
+    new Date().toISOString(),
+  );
   assert.equal((await room.POST(req('/api/control-room', { action: 'portal', enabled: true }))).status, 200);
   const p = database.prepare('SELECT id FROM portals').get().id;
   anon();
@@ -195,22 +193,20 @@ try {
     ['d1', 'SCIA test'],
     ['d2', 'HACCP test'],
   ]) {
-    database
-      .prepare('INSERT INTO records VALUES(?,?,?,?,?,?)')
-      .run(
-        id,
-        'owner-id',
-        'document',
-        JSON.stringify({
-          title,
-          category: 'Titoli e SCIA',
-          notes: 'PRIVATE_INTERNAL',
-          fileId: 'f' + id,
-          publicDescription: 'Documento per il controllo',
-        }),
-        now,
-        now,
-      );
+    database.prepare('INSERT INTO records VALUES(?,?,?,?,?,?)').run(
+      id,
+      'owner-id',
+      'document',
+      JSON.stringify({
+        title,
+        category: 'Titoli e SCIA',
+        notes: 'PRIVATE_INTERNAL',
+        fileId: 'f' + id,
+        publicDescription: 'Documento per il controllo',
+      }),
+      now,
+      now,
+    );
     database
       .prepare('INSERT INTO files VALUES(?,?,?,?,?,?,?)')
       .run('f' + id, 'owner-id', title + '.pdf', 'application/pdf', 'obj' + id, 'hash-' + id, now);

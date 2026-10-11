@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import net from 'node:net';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -90,6 +90,19 @@ function database() {
     '--persist-to',
     '.wrangler/state',
   ]);
+  // Admin login tables: same idempotent script used for the online database.
+  wrangler([
+    'd1',
+    'execute',
+    'DB',
+    '--local',
+    '--config',
+    config,
+    '--persist-to',
+    '.wrangler/state',
+    '--file',
+    'scripts/admin-login-schema.sql',
+  ]);
 }
 async function stopped() {
   await new Promise((resolve, reject) => {
@@ -155,6 +168,30 @@ try {
       console.log('Apri http://localhost:5173 — arresta con Ctrl+C. I dati sono locali.');
       run(node, ['scripts/run-framework.mjs', 'dev', '--hostname', '127.0.0.1']);
       break;
+    case 'admin': {
+      prepare();
+      const email = (process.argv[3] || 'admin@presidio.local').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Email non valida.');
+      const password = randomBytes(32).toString('base64url');
+      const keyHash = createHash('sha256').update(password).digest('hex');
+      const previous = fs
+        .readFileSync('.dev.vars', 'utf8')
+        .split('\n')
+        .filter(l => !/^PRESIDIO_ADMIN_CREDENTIALS=/.test(l))
+        .join('\n')
+        .trimEnd();
+      fs.writeFileSync(
+        '.dev.vars',
+        previous + "\nPRESIDIO_ADMIN_CREDENTIALS='" + JSON.stringify({ email, keyHash }) + "'\n",
+        { mode: 0o600 },
+      );
+      fs.chmodSync('.dev.vars', 0o600);
+      console.log('Accesso LOCALE configurato (non cambia il sito online). Riavvia Presidio.');
+      console.log('Email: ' + email);
+      console.log('Password: ' + password);
+      console.log('Salvala nel portachiavi del Mac. Rilanciando il comando ne generi una nuova.');
+      break;
+    }
     case 'key': {
       prepare();
       let key = '';
@@ -224,7 +261,9 @@ try {
       run(node, ['tests/access-control.mjs']);
       break;
     default:
-      console.log('Presidio PC: setup | start | db | key (stdin) | backup | verify | update CARTELLA | test');
+      console.log(
+        'Presidio PC: setup | start | db | admin [EMAIL] | key (stdin) | backup | verify | update CARTELLA | test',
+      );
   }
 } catch (e) {
   console.error('\nPRESIDIO: ' + e.message);
