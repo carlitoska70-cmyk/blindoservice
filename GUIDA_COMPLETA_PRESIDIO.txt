@@ -1,5 +1,59 @@
 PRESIDIO — GUIDA COMPLETA PER TITOLARE E SVILUPPATORE
-Edizione PC 1.0, 17 settembre 2026
+Edizione PC 1.0, 17 settembre 2026 — aggiornata l'11 ottobre 2026
+
+0. AGGIORNAMENTO 11 OTTOBRE 2026 (PREVALE SUI CAPITOLI SEGUENTI)
+
+ACCESSO DEL TITOLARE
+Il login ChatGPT/Seedy descritto nei capitoli 4 e 5 non è più in uso.
+L'accesso avviene con email e password generata (lib/admin-auth.ts):
+- Online: scripts/configure-admin.mjs crea le tabelle di login nel D1 remoto e
+  imposta il segreto PRESIDIO_ADMIN_CREDENTIALS sul Worker "blindoservice".
+- In locale:
+    cd "$HOME/Desktop/blindoservice"
+    bash CONFIGURA_ACCESSO_LOCALE.command
+  crea le tabelle nel database locale, genera una password casuale, la mostra
+  una sola volta e salva in .dev.vars soltanto email e impronta SHA-256.
+  Email predefinita: admin@presidio.local (oppure passala come argomento).
+  Riavvia Presidio e accedi da http://localhost:5173/login.
+Il login accetta HTTP soltanto su localhost/127.0.0.1; online richiede HTTPS.
+Sessione di 8 ore, cookie HttpOnly, limite di tentativi per IP.
+
+CONFIGURAZIONI WRANGLER
+wrangler.jsonc       SOLO produzione (Worker blindoservice, D1 e R2 reali).
+wrangler.local.json  SOLO sviluppo locale; vite.config.ts usa questo file.
+Prima dell'11 ottobre il server locale non partiva ("nodejs_compat specified
+multiple times") perché le due configurazioni venivano unite.
+
+COMANDI DI SVILUPPO
+corepack pnpm run typecheck     Controllo TypeScript (0 errori)
+corepack pnpm run lint          ESLint (0 errori; gli avvisi "any" sono ammessi)
+corepack pnpm run format        Formattazione Prettier di app, lib, db, scripts, tests
+corepack pnpm test              Test di accesso + test dei moduli (scripts/test-*.mjs)
+corepack pnpm run build         Build di produzione in dist/
+
+NUOVA MAPPA DEL CODICE (sostituisce le righe su presidio.tsx del capitolo 8)
+app/presidio.tsx                Guscio: stato condiviso, navigazione, caricamento.
+app/_presidio/shared.tsx        Componenti base (Badge, Field, Pick), api(), formati.
+app/_presidio/use-recorder.ts   Registrazione audio del titolare.
+app/_presidio/overview-tab.tsx  Situazione.
+app/_presidio/archive-tab.tsx   Documenti.
+app/_presidio/control-tab.tsx   Postazione del controllo, cronologia, audio.
+app/_presidio/actions-tab.tsx   Azioni.
+app/_presidio/sources-tab.tsx   Norme e progetto.
+app/_presidio/profile-tab.tsx   Azienda ed esportazione.
+app/_presidio/entry-dialog.tsx  Dialog di creazione/modifica schede.
+lib/admin-auth.ts               Login, sessioni, limiti tentativi.
+lib/operator.ts                 Legge la sessione admin (non più l'identità ChatGPT).
+app/document-importer.tsx       Importazione multipla con riconoscimento IA.
+app/catalogue-workbench.tsx     Catalogo con abbinamento automatico.
+
+PRESTAZIONI
+- Catalogo, importatore e dialog schede si caricano solo quando servono:
+  il codice iniziale dell'interfaccia è passato da 338 KB a 102 KB (103→30 KB gzip).
+- GET /api/state non rimanda più le revisioni storiche a ogni aggiornamento;
+  "Esporta schede e cronologie" le scarica con /api/state?revisions=1.
+- La postazione non interroga il server mentre la scheda del browser è nascosta.
+
 
 1. COSA HAI RICEVUTO E DOVE SI TROVA IL CODICE
 

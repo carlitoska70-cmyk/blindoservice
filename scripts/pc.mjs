@@ -62,13 +62,8 @@ function prepare() {
   if (!fs.existsSync('.dev.vars'))
     fs.writeFileSync(
       '.dev.vars',
-      '# SOLO LOCALE: non caricare online e non condividere.\nPRESIDIO_OWNER_EMAIL="seedy@sites.test"\nOPENAI_API_KEY=""\n',
+      '# SOLO LOCALE: non caricare online e non condividere.\nOPENAI_API_KEY=""\n',
       { mode: 0o600 },
-    );
-  const local = fs.readFileSync('.dev.vars', 'utf8');
-  if (!/^PRESIDIO_OWNER_EMAIL=["']?seedy@sites\.test["']?\s*$/m.test(local))
-    throw new Error(
-      'Per il login locale imposta PRESIDIO_OWNER_EMAIL="seedy@sites.test" in .dev.vars. Questo non cambia il titolare online.',
     );
   fs.chmodSync('.dev.vars', 0o600);
 }

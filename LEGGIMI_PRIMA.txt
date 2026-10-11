@@ -34,9 +34,10 @@ AVVIO — COPIA NEL TERMINALE
 cd "$HOME/Desktop/blindoservice"
 bash AVVIA.command
 
-Apri nel browser: http://localhost:5173
-Se vieni mandato al login, usa l'accesso locale incluso nel progetto.
-Indirizzo diretto: http://localhost:5173/signin-with-chatgpt?return_to=/
+Apri nel browser: http://localhost:5173/login
+La prima volta crea l'accesso locale (la password compare una sola volta):
+cd "$HOME/Desktop/blindoservice"
+bash CONFIGURA_ACCESSO_LOCALE.command
 Per fermare il programma: Ctrl+C nella finestra Terminale che lo esegue.
 
 OPENAI

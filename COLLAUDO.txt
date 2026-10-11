@@ -1,3 +1,30 @@
+RIORDINO E OTTIMIZZAZIONE — 11 OTTOBRE 2026, Mac (Node 22.23)
+
+RISULTATI EFFETTIVI
+- tests/access-control.mjs: non partiva (modulo mancante, harness ancora sul
+  login ChatGPT). Riallineato al login admin: 17/17 controlli superati,
+  incluso il nuovo controllo sull'esclusione delle revisioni dallo stato live.
+- Test dei moduli scripts/test-*.mjs: 72 controlli superati (admin-auth 13,
+  camera-pdf 3, catalogue-batch 14, catalogue 9, document-import 17,
+  document-recognition 16).
+- TypeScript: da 38 errori a 0. ESLint: da 192 errori a 0 (restano avvisi "any").
+- Build di produzione riuscita; chunk principale da 338 KB a 102 KB.
+- Server locale: non partiva (configurazioni wrangler unite); ora parte.
+- Login locale con credenziali generate da CONFIGURA_ACCESSO_LOCALE.command:
+  verificato nel browser (Chromium integrato), sessione e uscita.
+- Prova manuale con dati fittizi: creazione fascicolo, annotazione in
+  cronologia (la bozza resta al cambio di sezione), creazione e completamento
+  di un'azione, apertura di catalogo, importatore e dialog caricati on-demand,
+  sezione Norme, esportazione con revisioni. Console senza errori.
+- Layout verificato a 375 px (mobile) e desktop: nessuno scorrimento orizzontale.
+
+LIMITI DELLA VERIFICA
+- Nessuna chiamata OpenAI reale; nessuna registrazione audio dal microfono.
+- Nessun deploy e nessuna modifica del sito online, del D1 o dell'R2 remoti.
+- Non verificato su Safari/iPhone (cookie __Host- su http://localhost).
+
+------------------------------------------------------------------------
+
 PRESIDIO PC 1.0 — VERIFICHE DEL PACCHETTO
 17 settembre 2026, ambiente di verifica Linux; destinazione istruzioni: Mac.
 

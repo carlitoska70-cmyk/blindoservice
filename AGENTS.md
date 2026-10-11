@@ -9,16 +9,21 @@ Le note di stato aggiornate nella guida prevalgono sui passaggi storici di PRODU
 - Usare Sites per modifiche/publish del sito ospitato; non confondere sviluppo
   locale con pubblicazione. Una richiesta di solo ZIP/backup non è una modifica online.
 - Conservare pnpm-lock.yaml, package manager e versioni compatibili.
-- Il sito usa Cloudflare Workers, D1 e R2; l'autenticazione online è gestita
-  dalla piattaforma. Il mock locale già incluso è solo per loopback e sviluppo.
-- Non estendere il mock al sito online o alla LAN. Non rimuovere getOperator,
+- Il sito usa Cloudflare Workers, D1 e R2. Il titolare accede con il login admin
+  di lib/admin-auth.ts (segreto PRESIDIO_ADMIN_CREDENTIALS); HTTP è ammesso solo
+  su loopback. wrangler.jsonc è produzione, wrangler.local.json sviluppo.
+- Non allentare il login per LAN o online. Non rimuovere getOperator,
   verifiche owner, origine, autorizzazioni visitatori e protezione allegati.
+- Prima di consegnare: `corepack pnpm run typecheck`, `lint` (0 errori),
+  `format` e `corepack pnpm test`. L'interfaccia del titolare è divisa per
+  sezione in app/_presidio/; mantenere presidio.tsx come guscio sottile.
 - Non leggere/stampare chiavi se non indispensabile; mai includere .dev.vars,
   .env*, credenziali Git o dati utente negli ZIP sorgente.
 - Il toolkit PC preserva .wrangler/state e .dev.vars durante aggiornamenti.
   Prima di migrazioni/aggiornamenti fermare il server e fare un backup.
 - Eseguire test significativi per le modifiche. Per l'accesso esiste
-  `node tests/access-control.mjs`. Non descrivere un mock come test IA reale.
+  `node tests/access-control.mjs` (17 controlli). Non descrivere un mock come
+  test IA reale.
 - Per una release PC: aggiornare guida e COLLAUDO.txt, eseguire
   `node scripts/release-manifest.mjs`, poi `node scripts/pc.mjs verify`.
   Zippare solo i file del manifesto e il manifesto, sotto una cartella blindoservice.
