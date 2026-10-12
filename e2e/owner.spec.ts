@@ -74,3 +74,26 @@ test('portale QR: attivazione e modulo del visitatore', async ({ page, browser }
   await page.getByRole('button', { name: 'Disattiva portale' }).click();
   await expect(page.getByText('QR disattivato')).toBeVisible();
 });
+
+test('pagina offline in cache senza redirect', async ({ page }) => {
+  await login(page);
+  const result = await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    // Same asset handling as Cloudflare: the server redirects /offline.html to /offline.
+    const direct = await fetch('/offline.html', { redirect: 'manual' });
+    let cached: Response | undefined;
+    for (let i = 0; i < 20 && !cached; i++) {
+      cached = await caches.match('/offline.html');
+      if (!cached) await new Promise(r => setTimeout(r, 250));
+    }
+    return {
+      serverRedirects: direct.type === 'opaqueredirect',
+      cached: !!cached,
+      redirected: cached?.redirected,
+      status: cached?.status,
+      text: (await cached?.text())?.includes('Sei offline'),
+    };
+  });
+  // A redirected response cannot answer a navigation: the worker must store a clean copy.
+  expect(result).toEqual({ serverRedirects: true, cached: true, redirected: false, status: 200, text: true });
+});

@@ -3,16 +3,30 @@
 // - Pages: network-first; offline, the archived page or /offline.html is shown.
 // - Documents saved for offline use live in a separate cache, filled only on the
 //   owner's explicit request and cleared on logout. API data is never cached here.
-const STATIC = 'presidio-static-v1';
-const PAGES = 'presidio-pages-v1';
+const STATIC = 'presidio-static-v2';
+const PAGES = 'presidio-pages-v2';
 const DOCS = 'presidio-offline-docs';
 const OFFLINE_URL = '/offline.html';
+
+// Cloudflare serves /offline.html via a redirect to /offline. A redirected response
+// cannot answer a navigation, so a clean copy is stored under OFFLINE_URL.
+async function storeOfflinePage(cache) {
+  const res = await fetch(OFFLINE_URL, { cache: 'no-store' });
+  if (!res.ok) throw new Error('offline page ' + res.status);
+  const body = await res.blob();
+  await cache.put(
+    OFFLINE_URL,
+    new Response(body, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }),
+  );
+}
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches
       .open(PAGES)
-      .then(c => c.addAll([OFFLINE_URL, '/manifest.webmanifest', '/icons/icon-192.png']))
+      .then(c =>
+        Promise.all([storeOfflinePage(c), c.addAll(['/manifest.webmanifest', '/icons/icon-192.png'])]),
+      )
       .then(() => self.skipWaiting()),
   );
 });
