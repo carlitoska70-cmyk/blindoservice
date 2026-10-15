@@ -13,7 +13,33 @@ import {
   token,
   visitor,
 } from '@/lib/portal-server';
+import { authorizeVisit } from '@/lib/grants';
+import { send, type NotifyEnv } from '@/lib/notify';
+import { matches } from '@/lib/search-terms';
 export const dynamic = 'force-dynamic';
+
+/** Tells the owner an inspection started (Telegram/email). Failures never block the visit. */
+async function notifyOwner(req: Request, owner: string, d: any, auto: number) {
+  try {
+    const p = await db().prepare('SELECT data FROM profiles WHERE owner=?').bind(owner).first<any>();
+    const company = p ? JSON.parse(p.data).name : 'la tua attività';
+    const text = [
+      `CONTROLLO IN CORSO · ${company}`,
+      `${d.firstName} ${d.lastName} — ${d.office}`,
+      `Targa: ${d.plate}${d.role ? ' · ' + d.role : ''}`,
+      d.purpose ? `Oggetto dichiarato: ${d.purpose}` : '',
+      auto
+        ? `Esibizione automatica attiva: ${auto} documenti consultabili.`
+        : 'In attesa della tua autorizzazione dei documenti.',
+      `Apri Blindo Service e premi “Monitora controllo in corso”: ${new URL(req.url).origin}/`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    await send(env as unknown as NotifyEnv, `Controllo in corso: ${d.office}`, text);
+  } catch (e) {
+    console.error('inspection notification failed', e instanceof Error ? e.message : 'unknown');
+  }
+}
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -91,21 +117,47 @@ export async function POST(req: Request) {
           firstName: z.string().trim().min(1).max(100),
           lastName: z.string().trim().min(1).max(100),
           office: z.string().trim().min(1).max(160),
-          role: z.string().trim().min(1).max(160),
-          plate: z.string().trim().max(20),
-          purpose: z.string().trim().min(1).max(400),
+          plate: z.string().trim().min(1).max(20),
+          role: z.string().trim().max(160).default(''),
+          purpose: z.string().trim().max(400).default(''),
           noticeRead: z.literal(true),
         })
         .parse(b.data);
-      await db()
+      const changed = await db()
         .prepare('UPDATE visits SET data=?,status=?,last_seen=? WHERE id=? AND status=?')
         .bind(JSON.stringify(data), 'in_attesa', now, v.id, 'identificazione')
         .run();
+      if (!changed.meta.changes) return response({ error: 'Identificazione già inviata' }, 409);
       await event(v, 'identificazione', {
         firstName: data.firstName,
         lastName: data.lastName,
         office: data.office,
+        plate: data.plate,
       });
+      // Automatic exhibition: documents the owner pre-approved become searchable at once,
+      // so the inspection can proceed even when the owner is not on site.
+      const settings = await db()
+        .prepare('SELECT auto_share FROM portal_settings WHERE owner=?')
+        .bind(v.owner)
+        .first<{ auto_share: number }>();
+      let auto = 0;
+      if (settings?.auto_share) {
+        const rows = await db()
+          .prepare(
+            "SELECT id FROM records WHERE owner=? AND kind='document' AND json_extract(data,'$.autoShare')=1 AND json_extract(data,'$.archivedAt') IS NULL",
+          )
+          .bind(v.owner)
+          .all<{ id: string }>();
+        const fresh = { ...v, data: JSON.stringify(data), status: 'in_attesa' };
+        const result = await authorizeVisit(
+          fresh,
+          v.owner,
+          rows.results.map(r => r.id),
+          { auto: true, skipInvalid: true },
+        );
+        if (result.ok) auto = rows.results.length;
+      }
+      await notifyOwner(req, v.owner, data, auto);
       return response({ ok: true });
     }
     if (b.action === 'help') {
@@ -122,18 +174,26 @@ export async function POST(req: Request) {
       const query = z.string().trim().min(2).max(150).parse(b.query);
       const all = await db()
         .prepare(
-          'SELECT document_id AS id,title,description,version FROM grants WHERE visit_id=? ORDER BY title',
+          'SELECT g.document_id AS id,g.title,g.description,g.version,r.data AS meta FROM grants g LEFT JOIN records r ON r.id=g.document_id AND r.owner=g.owner WHERE g.visit_id=? ORDER BY g.title',
         )
         .bind(v.id)
         .all<any>();
-      const matches = all.results
-        .filter((x: any) =>
-          (x.title + ' ' + x.description).toLocaleLowerCase('it').includes(query.toLocaleLowerCase('it')),
-        )
-        .slice(0, 60);
-      await event(v, 'ricerca', { query, documentIds: matches.map((x: any) => x.id) });
+      const matchesQuery = (x: any) => {
+        const m = x.meta ? JSON.parse(x.meta) : {};
+        return matches(
+          query,
+          [x.title, x.description, m.category, m.documentType, m.issuer, m.protocol]
+            .filter(Boolean)
+            .join(' '),
+        );
+      };
+      const found = all.results
+        .filter(matchesQuery)
+        .slice(0, 60)
+        .map(({ meta: _meta, ...x }: any) => x);
+      await event(v, 'ricerca', { query, documentIds: found.map((x: any) => x.id) });
       await db().prepare('UPDATE visits SET last_seen=? WHERE id=?').bind(now, v.id).run();
-      return response({ documents: matches });
+      return response({ documents: found });
     }
     if (b.action === 'open') {
       const documentId = z.string().max(100).parse(b.documentId);
@@ -166,7 +226,7 @@ export async function POST(req: Request) {
   } catch (e) {
     if (e instanceof z.ZodError)
       return response(
-        { error: 'Compila nome, cognome, ufficio, ruolo e oggetto; conferma la lettura dell’informativa.' },
+        { error: 'Compila nome, cognome, ufficio e targa; conferma la lettura dell’informativa.' },
         400,
       );
     return failure(e);

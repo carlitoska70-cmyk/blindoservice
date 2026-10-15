@@ -12,11 +12,14 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Toaster, toast } from 'sonner';
-import ControlRoom, { useRoom } from './control-room';
+import ControlRoom, { roomApi, useRoom } from './control-room';
 import { categories, defaultProfile, Entry, Profile } from '@/lib/product';
 import type { DocumentData, InspectionData, TaskData } from '@/lib/schemas';
 import { api, emptyDoc, emptyInspection, emptyTask, Kind } from './_presidio/shared';
 import { useRecorder } from './_presidio/use-recorder';
+import { useLive } from './_presidio/use-live';
+import Monitor from './_presidio/monitor';
+import AutoShare from './_presidio/auto-share';
 import BottomNav from './_presidio/bottom-nav';
 import { clearOffline } from '@/lib/offline';
 import OverviewTab from './_presidio/overview-tab';
@@ -129,6 +132,31 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
   const visibleNav = navigation.filter(([id]) => !staff || !STAFF_HIDDEN.includes(id));
   const draft = useNoteDraft();
   const recorder = useRecorder({ setBusy, refresh: () => refresh() });
+  const live = useLive({ onArchived: () => refresh() });
+  const [monitor, setMonitor] = useState<{ visitId: string | null; inspectionId: string } | null>(null);
+
+  // "Monitora controllo in corso": microphone first (needs the tap), then the inspection
+  // file of the visit, then continuous recording with live suggestions.
+  async function startMonitor(visitId: string | null, inspectionId?: string) {
+    if (recorder.pending) {
+      toast.info('Archivia prima la registrazione manuale in corso.');
+      return;
+    }
+    try {
+      await live.requestMicrophone();
+      const id = visitId ? (await roomApi('monitor', { visitId })).inspectionId : inspectionId!;
+      setMonitor({ visitId, inspectionId: id });
+      await live.start(id);
+      await refresh().catch(() => {});
+    } catch (e) {
+      const err = e as Error;
+      toast.error(
+        err.name === 'NotAllowedError'
+          ? 'Consenti l’uso del microfono per registrare il controllo.'
+          : err.message,
+      );
+    }
+  }
 
   const liveVisits =
     room.data?.visits.filter(
@@ -136,6 +164,16 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
         v.status !== 'chiusa' &&
         Date.parse(v.expires) > room.now &&
         room.now - Date.parse(v.last_seen) < 20000,
+    ) || [];
+  // Sessions worth monitoring: open, not expired, inspector seen in the last 10 minutes
+  // (the phone may go to sleep while the inspection continues).
+  const activeVisits =
+    room.data?.visits.filter(
+      (v: any) =>
+        v.status !== 'chiusa' &&
+        Date.parse(v.expires) > room.now &&
+        room.now - Date.parse(v.last_seen) < 600000 &&
+        v.status !== 'identificazione',
     ) || [];
   // Archived records are kept (and restorable) but hidden from every working view.
   const active = useMemo(() => records.filter(x => !x.data?.archivedAt), [records]);
@@ -319,7 +357,7 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
             onSubmit={async e => {
               e.preventDefault();
               if (
-                recorder.pending &&
+                (recorder.pending || live.recording) &&
                 !window.confirm('Ci sono una registrazione o un audio non salvato. Vuoi uscire comunque?')
               )
                 return;
@@ -347,13 +385,19 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
           </TabsList>
         </div>
         <main className="workspace">
-          {liveVisits.length > 0 && (
-            <button className="livealert" onClick={() => setTab('room')}>
+          {activeVisits.length > 0 && !monitor && (
+            <button className="monitorcta" onClick={() => startMonitor(activeVisits[0].id)}>
               <span className="livedot" />
-              <strong>
-                QR IN USO · {liveVisits.length} {liveVisits.length === 1 ? 'sessione' : 'sessioni'}
-              </strong>
-              <span>Apri il controllo in diretta →</span>
+              <span>
+                <strong>Monitora controllo in corso</strong>
+                <small>
+                  {activeVisits[0].data?.firstName
+                    ? `${activeVisits[0].data.firstName} ${activeVisits[0].data.lastName} · ${activeVisits[0].data.office}`
+                    : 'Un agente ha aperto il portale QR'}
+                  {activeVisits.length > 1 ? ` · ${activeVisits.length} sessioni` : ''}
+                </small>
+                <em>Avvia la registrazione audio su questo dispositivo e i suggerimenti dell’IA</em>
+              </span>
             </button>
           )}
           {recorder.rec && (
@@ -470,6 +514,7 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
                     goToInspection(id);
                   }}
                 />
+                <AutoShare room={room} documents={documents} onSaved={() => refresh()} />
               </TabsContent>
               <TabsContent value="archive">
                 <ArchiveTab
@@ -497,6 +542,8 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
                   onOpen={open}
                   onTab={setTab}
                   onRefresh={() => refresh()}
+                  onMonitor={id => startMonitor(null, id)}
+                  liveReady={!!room.data?.aiReady}
                 />
               </TabsContent>
               <TabsContent value="actions">
@@ -525,6 +572,19 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
           </footer>
         </main>
       </Tabs>
+      {monitor && (
+        <Monitor
+          room={room}
+          visitId={monitor.visitId}
+          inspectionId={monitor.inspectionId}
+          live={live}
+          documents={documents}
+          onClose={() => {
+            setMonitor(null);
+            live.reset();
+          }}
+        />
+      )}
       <BottomNav
         items={visibleNav}
         primary={

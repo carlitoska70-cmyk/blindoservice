@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { z } from 'zod';
 import { body, db, event, failure, origin, owner, response, token } from '@/lib/portal-server';
+import { authorizeVisit, inspectionInsert } from '@/lib/grants';
 export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
@@ -14,12 +15,17 @@ export async function GET() {
         .all(),
     ]);
     const grants = await db().prepare('SELECT * FROM grants WHERE owner=?').bind(uid).all();
+    const settings = await db()
+      .prepare('SELECT auto_share FROM portal_settings WHERE owner=?')
+      .bind(uid)
+      .first<{ auto_share: number }>();
     return response({
       portal: p,
       visits: v.results.map((x: any) => ({ ...x, token_hash: undefined, data: JSON.parse(x.data) })),
       events: logs.results.map((x: any) => ({ ...x, data: JSON.parse(x.data) })),
       grants: grants.results,
       aiReady: !!env.OPENAI_API_KEY,
+      autoShare: !!settings?.auto_share,
       serverTime: new Date().toISOString(),
     });
   } catch (e) {
@@ -53,6 +59,16 @@ export async function POST(req: Request) {
         .run();
       return response({ ok: true });
     }
+    if (b.action === 'settings') {
+      const autoShare = z.boolean().parse(b.autoShare);
+      await db()
+        .prepare(
+          'INSERT INTO portal_settings(owner,auto_share,updated) VALUES(?,?,?) ON CONFLICT(owner) DO UPDATE SET auto_share=excluded.auto_share,updated=excluded.updated',
+        )
+        .bind(uid, autoShare ? 1 : 0, now)
+        .run();
+      return response({ ok: true });
+    }
     const visitId = z.string().max(100).parse(b.visitId);
     const v = await db()
       .prepare('SELECT * FROM visits WHERE id=? AND owner=?')
@@ -67,83 +83,30 @@ export async function POST(req: Request) {
       await event(v, 'revoca', {});
       return response({ ok: true });
     }
+    if (b.action === 'monitor') {
+      // Opens (or reuses) the inspection file for live monitoring, even before documents are granted.
+      if (v.status === 'chiusa') return response({ error: 'Sessione terminata' }, 409);
+      if (v.inspection_id) return response({ ok: true, inspectionId: v.inspection_id });
+      const inspectionId = crypto.randomUUID();
+      await db().batch([
+        inspectionInsert(v, uid, inspectionId, now),
+        db()
+          .prepare('UPDATE visits SET inspection_id=? WHERE id=? AND owner=? AND inspection_id IS NULL')
+          .bind(inspectionId, v.id, uid),
+      ]);
+      await event(v, 'monitoraggio', { inspectionId });
+      return response({ ok: true, inspectionId });
+    }
     if (b.action === 'grants') {
-      if (v.status === 'chiusa' || v.expires <= now)
-        return response({ error: 'Sessione terminata o scaduta' }, 409);
-      if (!['in_attesa', 'autorizzata'].includes(v.status))
-        return response({ error: 'Attendi l’inserimento dei dati identificativi' }, 409);
       if (b.identityVerified !== true)
         return response(
           { error: 'Conferma di aver verificato l’identità e la pertinenza dei documenti' },
           400,
         );
       const ids = z.array(z.string().max(100)).max(150).parse(b.documentIds);
-      const rows = await db()
-        .prepare("SELECT id,data,updated FROM records WHERE owner=? AND kind='document'")
-        .bind(uid)
-        .all<any>();
-      const docs = rows.results.filter((x: any) => ids.includes(x.id));
-      if (docs.length !== new Set(ids).size) return response({ error: 'Documento non trovato' }, 400);
-      const stmts: any[] = [db().prepare('DELETE FROM grants WHERE visit_id=? AND owner=?').bind(v.id, uid)];
-      const details: any[] = [];
-      for (const doc of docs) {
-        const d = JSON.parse(doc.data);
-        if (d.archivedAt)
-          return response({ error: 'Documento archiviato: ripristinalo prima di esibirlo' }, 400);
-        if (!d.fileId) return response({ error: 'Allega un originale a ' + d.title }, 400);
-        const f = await db()
-          .prepare('SELECT mime FROM files WHERE id=? AND owner=?')
-          .bind(d.fileId, uid)
-          .first<any>();
-        if (!f || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(f.mime))
-          return response({ error: 'Allegato non esibibile' }, 400);
-        stmts.push(
-          db()
-            .prepare(
-              'INSERT INTO grants(id,owner,visit_id,document_id,file_id,title,description,version,created) VALUES(?,?,?,?,?,?,?,?,?)',
-            )
-            .bind(
-              crypto.randomUUID(),
-              uid,
-              v.id,
-              doc.id,
-              d.fileId,
-              d.title,
-              d.publicDescription || d.category,
-              doc.updated,
-              now,
-            ),
-        );
-        details.push({ documentId: doc.id, fileId: d.fileId, version: doc.updated, title: d.title });
-      }
-      let inspectionId = v.inspection_id;
-      if (!inspectionId) {
-        inspectionId = crypto.randomUUID();
-        const identity = JSON.parse(v.data);
-        const data = {
-          authority: identity.office,
-          scope: identity.purpose,
-          officers: identity.firstName + ' ' + identity.lastName + ' · ' + identity.role,
-          reference: 'Sessione QR ' + v.id.slice(0, 8),
-          status: 'aperto',
-          outcome: '',
-          started: v.created,
-          ended: '',
-        };
-        stmts.push(
-          db()
-            .prepare('INSERT INTO records(id,owner,kind,data,created,updated) VALUES(?,?,?,?,?,?)')
-            .bind(inspectionId, uid, 'inspection', JSON.stringify(data), now, now),
-        );
-      }
-      stmts.push(
-        db()
-          .prepare('UPDATE visits SET status=?,inspection_id=?,active_doc=NULL WHERE id=? AND owner=?')
-          .bind('autorizzata', inspectionId, v.id, uid),
-      );
-      await db().batch(stmts);
-      await event(v, 'autorizzazione', { documents: details, identityVerified: true });
-      return response({ ok: true, inspectionId });
+      const result = await authorizeVisit(v, uid, ids);
+      if (!result.ok) return response({ error: result.error }, result.status);
+      return response({ ok: true, inspectionId: result.inspectionId });
     }
     if (b.action === 'report') {
       const log = await db()

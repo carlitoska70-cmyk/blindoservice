@@ -28,6 +28,8 @@ for (const args of [
   });
   if (r.status !== 0) process.exit(r.status || 1);
 }
+// Local OpenAI stand-in, so the live assistant can be exercised end to end.
+const mock = spawn(process.execPath, ['scripts/e2e-openai-mock.mjs'], { stdio: 'inherit' });
 const child = spawn(
   process.execPath,
   [
@@ -48,8 +50,19 @@ const child = spawn(
     'PRESIDIO_ADMIN_CREDENTIALS:' + process.env.E2E_OWNER_CREDENTIALS,
     '--var',
     'PRESIDIO_STAFF_CREDENTIALS:' + process.env.E2E_STAFF_CREDENTIALS,
+    '--var',
+    'OPENAI_API_KEY:sk-e2e-mock',
+    '--var',
+    'OPENAI_BASE_URL:http://127.0.0.1:' + (process.env.E2E_OPENAI_PORT || '8798'),
   ],
   { stdio: 'inherit' },
 );
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
-child.on('exit', code => process.exit(code ?? 0));
+for (const sig of ['SIGINT', 'SIGTERM'])
+  process.on(sig, () => {
+    mock.kill(sig);
+    child.kill(sig);
+  });
+child.on('exit', code => {
+  mock.kill();
+  process.exit(code ?? 0);
+});

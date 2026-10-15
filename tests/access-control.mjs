@@ -21,6 +21,7 @@ for (const file of readdirSync('drizzle')
   .filter(f => f.endsWith('.sql'))
   .sort())
   database.exec(readFileSync(join('drizzle', file), 'utf8'));
+database.exec(readFileSync('scripts/admin-login-schema.sql', 'utf8'));
 symlinkSync(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir');
 class Statement {
   constructor(sql, args = []) {
@@ -63,6 +64,8 @@ globalThis.__presidioTest = {
       },
     },
     BUCKET: {
+      put: async (key, value) =>
+        bucket.set(key, value instanceof Uint8Array ? Buffer.from(value).toString('latin1') : String(value)),
       get: async key =>
         bucket.has(key)
           ? {
@@ -83,12 +86,19 @@ const files = [
   'lib/document-schema.ts',
   'lib/schemas.ts',
   'lib/portal-server.ts',
+  'lib/grants.ts',
+  'lib/notify.ts',
+  'lib/search-terms.ts',
+  'lib/openai.ts',
   'app/api/state/route.ts',
   'app/api/files/route.ts',
   'app/api/portal/route.ts',
   'app/api/portal/file/route.ts',
   'app/api/control-room/route.ts',
   'app/api/assistant/route.ts',
+  'lib/live.ts',
+  'lib/text-pdf.ts',
+  'app/api/live/route.ts',
 ];
 for (const file of files) {
   let source = readFileSync(file, 'utf8');
@@ -114,7 +124,8 @@ const state = await mod('app/api/state/route'),
   room = await mod('app/api/control-room/route'),
   file = await mod('app/api/portal/file/route'),
   privateFile = await mod('app/api/files/route'),
-  ai = await mod('app/api/assistant/route');
+  ai = await mod('app/api/assistant/route'),
+  liveApi = await mod('app/api/live/route');
 const origin = 'https://presidio.test';
 let cookie = '';
 const req = (path, body, ck = cookie) =>
@@ -187,7 +198,11 @@ try {
     plate: '',
     noticeRead: true,
   };
+  // Plate is required (nome, cognome, targa, ufficio).
+  assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 400);
+  identity.plate = 'AB123CD';
   assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 200);
+  assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 409);
   assert.equal((await portal.POST(req('/api/portal', { action: 'search', query: 'SCIA' }))).status, 403);
   passed++;
   const now = new Date().toISOString();
@@ -429,6 +444,159 @@ try {
   );
   owner();
   assert.equal((await privateFile.GET(req('/api/files?id=faudio'))).status, 200);
+  passed++;
+  // Automatic exhibition: pre-approved documents searchable at once, with synonyms; others stay hidden.
+  owner();
+  database.prepare('INSERT INTO portal_settings VALUES(?,?,?)').run('owner-id', 1, now);
+  database
+    .prepare('INSERT INTO records VALUES(?,?,?,?,?,?)')
+    .run(
+      'd3',
+      'owner-id',
+      'document',
+      JSON.stringify({ title: 'SCIA automatica', category: 'Titoli e SCIA', fileId: 'fd3', autoShare: true }),
+      now,
+      now,
+    );
+  database
+    .prepare('INSERT INTO files VALUES(?,?,?,?,?,?,?)')
+    .run('fd3', 'owner-id', 'scia.pdf', 'application/pdf', 'objd3', 'hash-d3', now);
+  r = await portal.POST(req('/api/portal', { action: 'start', portal: p }, ''));
+  const autoCookie = r.headers.get('set-cookie').split(';')[0];
+  assert.equal(
+    (await portal.POST(req('/api/portal', { action: 'identify', data: identity }, autoCookie))).status,
+    200,
+  );
+  const autoVisit = database
+    .prepare('SELECT status,inspection_id FROM visits ORDER BY created DESC LIMIT 1')
+    .get();
+  assert.equal(autoVisit.status, 'autorizzata');
+  assert(autoVisit.inspection_id);
+  x = await json(
+    await portal.POST(
+      req('/api/portal', { action: 'search', query: 'segnalazione certificata' }, autoCookie),
+    ),
+  );
+  assert.deepEqual(
+    x.data.documents.map(d => d.id),
+    ['d3'],
+  );
+  x = await json(await portal.POST(req('/api/portal', { action: 'search', query: 'haccp' }, autoCookie)));
+  assert.deepEqual(x.data.documents, []);
+  assert.equal(
+    database
+      .prepare(
+        "SELECT json_extract(data,'$.auto') AS auto FROM portal_events WHERE kind='autorizzazione' ORDER BY created DESC LIMIT 1",
+      )
+      .get().auto,
+    1,
+  );
+  passed++;
+  // Live inspection with a simulated OpenAI: segment → transcript → hint; finish → report → archived PDF.
+  owner();
+  const env = globalThis.__presidioTest.env;
+  env.OPENAI_API_KEY = 'sk-test';
+  const realFetch = globalThis.fetch;
+  const said = 'Mi faccia vedere la SCIA. Se non la trovo le chiudo il locale oggi stesso.';
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/audio/transcriptions')) return Response.json({ text: said });
+    if (String(url).includes('/responses')) {
+      const body = JSON.parse(init.body);
+      const out = body.instructions.includes('rapporto finale')
+        ? {
+            motivo: 'Verifica della SCIA',
+            sintesi: 'Richiesta della SCIA con minaccia di chiusura.',
+            possibiliViolazioni: [
+              {
+                titolo: 'Minaccia di chiusura',
+                descrizione: 'Prospettata senza provvedimento.',
+                citazione: 'le chiudo il locale oggi stesso',
+                riferimento: '',
+                gravita: 'alta',
+                verifica: 'Ascoltare',
+              },
+              { titolo: 'Inventata', descrizione: 'x', citazione: 'frase mai detta', gravita: 'alta' },
+            ],
+            azioni: ['Chiedere copia del verbale'],
+          }
+        : {
+            question: 'Mi faccia vedere la SCIA',
+            answer: 'Certo, è nel portale: cerchi “scia”.',
+            documents: ['d3', 'fantasma'],
+            searchHint: 'scia',
+            caution: '',
+            urgency: 'alta',
+          };
+      return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(out) }] }] });
+    }
+    return realFetch(url, init);
+  };
+  try {
+    const created = await json(
+      await post({
+        action: 'create',
+        kind: 'inspection',
+        data: {
+          authority: 'Polizia municipale',
+          scope: 'SCIA',
+          officers: '',
+          reference: '',
+          status: 'aperto',
+          outcome: '',
+          started: now,
+          ended: '',
+        },
+      }),
+    );
+    const liveId = created.data.id;
+    const segment = (n, insp = liveId) => {
+      const form = new FormData();
+      form.append('inspectionId', insp);
+      form.append('seq', String(n));
+      form.append('offsetMs', String(n * 8000));
+      form.append('file', new File([new Uint8Array(4000)], 'segmento.webm', { type: 'audio/webm' }));
+      return liveApi.POST(
+        new Request(origin + '/api/live', { method: 'POST', headers: { Origin: origin }, body: form }),
+      );
+    };
+    x = await json(await segment(0));
+    assert.equal(x.status, 200);
+    assert.equal(x.data.segment.text, said);
+    assert.deepEqual(x.data.hint.documents, ['d3']);
+    const fin = await json(
+      await liveApi.POST(
+        new Request(origin + '/api/live', {
+          method: 'POST',
+          headers: { Origin: origin, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inspectionId: liveId }),
+        }),
+      ),
+    );
+    assert.equal(fin.status, 200);
+    assert(fin.data.reportId && fin.data.pdfFileId);
+    const rep = JSON.parse(
+      database.prepare('SELECT data FROM records WHERE id=?').get(fin.data.reportId).data,
+    );
+    assert.equal(rep.possibiliViolazioni[0].citazione, 'le chiudo il locale oggi stesso');
+    assert.equal(rep.possibiliViolazioni[1].gravita, 'bassa');
+    assert.equal(rep.citazioniScartate, 1);
+    const pdfRow = database
+      .prepare('SELECT object_key,sha256,mime FROM files WHERE id=?')
+      .get(fin.data.pdfFileId);
+    assert.equal(pdfRow.mime, 'application/pdf');
+    assert(bucket.get(pdfRow.object_key).startsWith('%PDF-1.4'));
+    assert.equal(
+      JSON.parse(database.prepare('SELECT data FROM records WHERE id=?').get(liveId).data).status,
+      'concluso',
+    );
+    assert.equal((await segment(1)).status, 409);
+    globalThis.__presidioTest.user = { userId: 'owner-id', email: 'staff@example.test' };
+    assert.equal((await segment(2)).status, 401);
+    owner();
+  } finally {
+    globalThis.fetch = realFetch;
+    delete env.OPENAI_API_KEY;
+  }
   passed++;
   const { catalogue, catalogueCategories } = await mod('lib/catalogue');
   assert.equal(new Set(catalogue.map(c => c.id)).size, catalogue.length);
