@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { categories } from '@/lib/product';
 import type { FieldKey, Recognition } from '@/lib/document-recognition';
 import { documentPdf, fileKind } from '@/lib/photo-pdf';
+import { SENSITIVE_STAFF_DOC } from '@/lib/staff';
 import DocumentCamera from './document-camera';
 import DocumentCatalogue from './document-catalogue';
 const labels: Record<FieldKey, string> = {
@@ -46,6 +47,10 @@ export default function DocumentEditor({
   const [cameraOpen, setCameraOpen] = useState(false);
   const running = useRef(false);
   const recognition = value.recognition as Recognition | undefined;
+  // Identity papers, permits and payslips of an employee never go to the AI: the owner fills the form.
+  const personal = !!value.employeeId && SENSITIVE_STAFF_DOC.test(String(value.title || ''));
+  const PERSONAL_NOTE =
+    'Documento personale del dipendente: compila la scheda a mano. Il file non viene inviato all’intelligenza artificiale.';
   async function analyze(data: any) {
     setPhase('Lettura e classificazione del documento…');
     const response = await fetch('/api/documents/recognize', {
@@ -105,9 +110,10 @@ export default function DocumentEditor({
         catalogProposal: undefined,
         catalogMatchingDismissed: false,
       };
-      for (const key of Object.keys(labels)) next[key] = key === 'category' ? 'Altro' : '';
+      if (!personal) for (const key of Object.keys(labels)) next[key] = key === 'category' ? 'Altro' : '';
       onChange(next);
-      await analyze(next);
+      if (personal) setPhase(PERSONAL_NOTE);
+      else await analyze(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Operazione non riuscita.');
       setPhase('');
@@ -119,6 +125,10 @@ export default function DocumentEditor({
   }
   async function retry() {
     if (running.current || !value.fileId) return;
+    if (personal) {
+      setPhase(PERSONAL_NOTE);
+      return;
+    }
     if (
       !window.confirm(
         'Rileggere il documento e sostituire i dati proposti? Le modifiche manuali ai campi estratti saranno sostituite.',
@@ -229,8 +239,9 @@ export default function DocumentEditor({
         <div className="panel" style={{ background: '#f4f7fc', padding: 18, marginTop: 18 }}>
           <h2>Carica il documento: compiliamo la scheda</h2>
           <p className="muted" style={{ margin: '10px 0' }}>
-            Le foto vengono convertite in PDF prima del caricamento. Il PDF viene inviato a OpenAI per
-            proporre categoria e dati. Controlla il risultato prima di salvare.
+            {personal
+              ? 'Le foto vengono convertite in PDF prima del caricamento. È un documento personale del dipendente: resta nell’archivio e la scheda si compila a mano, senza intelligenza artificiale.'
+              : 'Le foto vengono convertite in PDF prima del caricamento. Il PDF viene inviato a OpenAI per proporre categoria e dati. Controlla il risultato prima di salvare.'}
           </p>
           <label className="field">
             <span>Scegli un documento</span>

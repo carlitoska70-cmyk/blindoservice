@@ -1,9 +1,11 @@
-// Worker entry: the site (vinext) plus the hourly link with the Gionti Holding centrale.
-// The cron schedule is in wrangler.jsonc ("triggers"); without HOLDING_SEGNALE_KEY it does nothing.
+// Worker entry: the site (vinext), the hourly link with the Gionti Holding centrale and the nightly
+// data retention. The cron schedule is in wrangler.jsonc ("triggers"); without HOLDING_SEGNALE_KEY
+// the holding link does nothing, while retention runs in every copy (at most once every 20 hours).
 import handler from 'vinext/server/fetch-handler';
 import { version } from '../package.json';
 import { allCatalogue } from '../lib/catalogue-index';
 import { runHolding } from '../lib/holding';
+import { runRetention } from '../lib/retention';
 
 const catalogue = allCatalogue.map(c => ({ id: c.id, title: c.title }));
 
@@ -17,5 +19,6 @@ export default {
         console.log('holding', JSON.stringify(r)),
       ),
     );
+    ctx.waitUntil(runRetention(env).then(r => console.log('retention', JSON.stringify(r))));
   },
 } satisfies ExportedHandler<Cloudflare.Env>;

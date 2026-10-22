@@ -21,6 +21,7 @@ import { docState, Entry, guidance, Profile } from '@/lib/product';
 import AiPanel from '../ai-panel';
 import type { Recorder } from './use-recorder';
 import { Action, Badge, download, Field, fmt, OpenEntry, Pick, SectionTitle, time } from './shared';
+import { InspectionRetentionBar, Listenings } from './retention-panel';
 
 const clock = (s: number) =>
   Math.floor(s / 60)
@@ -212,6 +213,7 @@ export default function ControlTab({
               </button>
             </div>
           </div>
+          <InspectionRetentionBar inspection={current} records={records} busy={busy} action={action} />
           <div className="controlgrid">
             <section className="panel">
               <div className="sectionhead">
@@ -325,6 +327,7 @@ export default function ControlTab({
                         >
                           Apri audio <ExternalLink size={14} />
                         </a>
+                        <Listenings records={records} fileId={x.data.fileId} />
                       </>
                     )}
                   </article>

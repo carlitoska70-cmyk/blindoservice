@@ -193,7 +193,6 @@ export default function ControlRoom({
                   {v.data.office || 'Ufficio da inserire'} · {v.data.role || 'Ruolo da inserire'}
                 </p>
                 <p>{v.data.purpose || 'Oggetto del controllo da inserire'}</p>
-                {v.data.plate && <p>Targa dichiarata: {v.data.plate}</p>}
                 <p className="smallnote">
                   Identità dichiarata dal visitatore. Ultimo segnale: {clock(v.last_seen)}. L’accesso al
                   portale non dimostra l’identità né la presenza fisica nel locale.
@@ -235,6 +234,27 @@ export default function ControlRoom({
                   >
                     <Download size={15} />
                     Resoconto
+                  </button>
+                  <button
+                    className="textbutton"
+                    disabled={busy}
+                    title="Per rispondere a una richiesta di accesso ai dati dell’agente (art. 15 GDPR)"
+                    onClick={() =>
+                      run(async () => {
+                        const d = await roomApi('report', { visitId: id, scope: 'interessato' });
+                        const u = URL.createObjectURL(
+                          new Blob([d.text], { type: 'text/plain;charset=utf-8' }),
+                        );
+                        const a = document.createElement('a');
+                        a.href = u;
+                        a.download = 'dati-interessato-' + id.slice(0, 8) + '.txt';
+                        a.click();
+                        setTimeout(() => URL.revokeObjectURL(u), 1000);
+                      })
+                    }
+                  >
+                    <Download size={15} />
+                    Dati per l’interessato
                   </button>
                 </div>
               </section>

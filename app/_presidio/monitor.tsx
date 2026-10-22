@@ -79,8 +79,7 @@ export default function Monitor({
               {live.recording && <em> · {clock(live.elapsed)}</em>}
             </strong>
             <small>
-              {[who.office, who.plate && 'targa ' + who.plate].filter(Boolean).join(' · ') ||
-                'Agente non registrato nel portale'}
+              {[who.office, who.role].filter(Boolean).join(' · ') || 'Agente non registrato nel portale'}
             </small>
           </span>
         </div>

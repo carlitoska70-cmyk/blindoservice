@@ -16,6 +16,7 @@ import { categories, checks, dayDiff, Entry, Profile } from '@/lib/product';
 import { dueItems, romeToday } from '@/lib/reminders';
 import { Badge, fmt, OpenEntry } from './shared';
 import Onboarding from './onboarding';
+import { RetentionNotice } from './retention-panel';
 
 export default function OverviewTab({
   staff = false,
@@ -25,6 +26,7 @@ export default function OverviewTab({
   documents,
   inspections,
   tasks,
+  records = [],
   onOpen,
   onTab,
   onFilter,
@@ -37,6 +39,8 @@ export default function OverviewTab({
   documents: Entry<DocumentData>[];
   inspections: Entry<InspectionData>[];
   tasks: Entry<TaskData>[];
+  /** All the owner's records: needed for the retention notice (empty for the collaborator). */
+  records?: Entry[];
   onOpen: OpenEntry;
   onTab: (tab: string) => void;
   onFilter: (category: string) => void;
@@ -101,6 +105,7 @@ export default function OverviewTab({
           ]}
         />
       )}
+      {!staff && <RetentionNotice inspections={inspections} records={records} onInspection={onInspection} />}
       <section className="panel">
         <div className="sectionhead">
           <div>

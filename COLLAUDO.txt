@@ -1,4 +1,5 @@
-IL GESTIONALE PARLA CON BLINDO — 22 OTTOBRE 2026 (branch evidenze-gestionale, 0.4.0, sopra rilascio-registro 0.3.0)
+IL GESTIONALE PARLA CON BLINDO — 22 OTTOBRE 2026 (branch evidenze-gestionale, 0.4.0,
+sopra rilascio-registro 0.3.0 e conservazione d2bc85a)
 
 RISULTATI EFFETTIVI
 - scripts/test-holding.mjs: 12/12. Nuovi: evidenze validate (link solo verso il
@@ -7,14 +8,16 @@ RISULTATI EFFETTIVI
   mai i valori; da_completare con documenti e requisiti coperti ancora da valutare;
   evidenze salvate e conservate se la centrale risponde con una pagina, è giù o
   rifiuta la chiave; senza chiave nessuna chiamata.
-- End-to-end Playwright 10/10 sopra rilascio-registro (con live.spec.ts). Il flusso di
+- End-to-end Playwright 10/10 sopra rilascio-registro e conservazione (con live.spec.ts). Il flusso di
   e2e/holding.spec.ts è un'unica prova con un solo login: il Cron legge le evidenze con la
   chiave PRIMA del segnale, il segnale porta da_completare e non il link HACCP, il Catalogo
   mostra «Dal gestionale Kassaro OS» con il link giusto; nel portale il link ai registri
   HACCP NON arriva al controllore in attesa e arriva dopo l'autorizzazione del titolare.
   Attenzione: la serie usa 10 login, il massimo per indirizzo in 15 minuti
   (lib/admin-auth.ts): una prova in più con un nuovo login farebbe fallire l'ultima.
-- tests/access-control.mjs 23/23; typecheck e lint 0 errori; test dei moduli tutti verdi.
+- tests/access-control.mjs 30/30 (con i controlli della conservazione); test dei moduli tutti
+  verdi, compreso test-retention; typecheck e lint 0 errori. Il Cron fa insieme il collegamento
+  alla holding e la pulizia notturna (runRetention), che non tocca il record 'evidence'.
 
 - Evidenze vere di Kassaro OS 8.3.0 (22/10, 16:50): 14 voci ricevute e accettate,
   14/14 titoli trovati nel catalogo, link tutti su kassaro-os.onrender.com, pagina
