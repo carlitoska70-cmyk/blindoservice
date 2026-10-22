@@ -15,7 +15,6 @@ export default function InspectorPortal({ portal }: { portal: string }) {
     lastName: '',
     office: '',
     role: '',
-    plate: '',
     purpose: '',
     noticeRead: false,
   });
@@ -139,7 +138,6 @@ export default function InspectorPortal({ portal }: { portal: string }) {
                   [
                     ['firstName', 'Nome', true],
                     ['lastName', 'Cognome', true],
-                    ['plate', 'Targa del veicolo', true],
                     ['office', 'Ente e ufficio di provenienza', true],
                     ['role', 'Qualifica (facoltativa)', false],
                     ['purpose', 'Oggetto del controllo (facoltativo)', false],
@@ -152,10 +150,9 @@ export default function InspectorPortal({ portal }: { portal: string }) {
                     </span>
                     <input
                       required={required}
-                      maxLength={key === 'plate' ? 20 : 200}
+                      maxLength={200}
                       autoComplete="off"
-                      autoCapitalize={key === 'plate' ? 'characters' : 'words'}
-                      placeholder={key === 'plate' ? 'Es. AB123CD — scrivi “nessuna” se a piedi' : ''}
+                      autoCapitalize="words"
                       value={form[key]}
                       onChange={e => setForm({ ...form, [key]: e.target.value })}
                     />

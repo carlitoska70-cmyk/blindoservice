@@ -81,11 +81,7 @@ export function inspectionInsert(v: any, uid: string, inspectionId: string, now:
   const data = {
     authority: identity.office || 'Ente non dichiarato',
     scope: identity.purpose || 'Oggetto non dichiarato',
-    officers: [
-      [identity.firstName, identity.lastName].filter(Boolean).join(' '),
-      identity.role,
-      identity.plate ? 'targa ' + identity.plate : '',
-    ]
+    officers: [[identity.firstName, identity.lastName].filter(Boolean).join(' '), identity.role]
       .filter(Boolean)
       .join(' · '),
     reference: 'Sessione QR ' + v.id.slice(0, 8),

@@ -18,15 +18,18 @@ import { send, type NotifyEnv } from '@/lib/notify';
 import { matches } from '@/lib/search-terms';
 export const dynamic = 'force-dynamic';
 
-/** Tells the owner an inspection started (Telegram/email). Failures never block the visit. */
+/**
+ * Tells the owner an inspection started (Telegram/email). Failures never block the visit.
+ * Telegram and email are outside the archive: the message carries no officer's personal data
+ * (names and qualifications stay in Blindo Service), only the office and the declared subject.
+ */
 async function notifyOwner(req: Request, owner: string, d: any, auto: number) {
   try {
     const p = await db().prepare('SELECT data FROM profiles WHERE owner=?').bind(owner).first<any>();
     const company = p ? JSON.parse(p.data).name : 'la tua attività';
     const text = [
       `CONTROLLO IN CORSO · ${company}`,
-      `${d.firstName} ${d.lastName} — ${d.office}`,
-      `Targa: ${d.plate}${d.role ? ' · ' + d.role : ''}`,
+      `Ente: ${d.office}`,
       d.purpose ? `Oggetto dichiarato: ${d.purpose}` : '',
       auto
         ? `Esibizione automatica attiva: ${auto} documenti consultabili.`
@@ -117,7 +120,6 @@ export async function POST(req: Request) {
           firstName: z.string().trim().min(1).max(100),
           lastName: z.string().trim().min(1).max(100),
           office: z.string().trim().min(1).max(160),
-          plate: z.string().trim().min(1).max(20),
           role: z.string().trim().max(160).default(''),
           purpose: z.string().trim().max(400).default(''),
           noticeRead: z.literal(true),
@@ -132,7 +134,6 @@ export async function POST(req: Request) {
         firstName: data.firstName,
         lastName: data.lastName,
         office: data.office,
-        plate: data.plate,
       });
       // Automatic exhibition: documents the owner pre-approved become searchable at once,
       // so the inspection can proceed even when the owner is not on site.

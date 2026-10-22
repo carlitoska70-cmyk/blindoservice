@@ -60,7 +60,6 @@ test('controllo completo: QR con esibizione automatica, monitor, suggerimenti, r
   await agent.goto('/accesso');
   await agent.getByLabel('Nome *', { exact: true }).fill('Mario');
   await agent.getByLabel('Cognome *').fill('Rossi');
-  await agent.getByLabel('Targa del veicolo *').fill('AB123CD');
   await agent.getByLabel('Ente e ufficio di provenienza *').fill('Polizia municipale di Palermo');
   await agent.getByLabel('Ho letto le informazioni sulla sessione.').check();
   await agent.getByRole('button', { name: 'Accedi ai documenti' }).click();

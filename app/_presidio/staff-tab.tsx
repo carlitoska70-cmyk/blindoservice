@@ -8,13 +8,14 @@ import {
   Link2,
   Plus,
   Save,
+  Trash2,
   Upload,
   UserRound,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import type { Entry } from '@/lib/product';
 import { DESIGNATIONS, type DocumentData, type EmployeeData } from '@/lib/schemas';
-import { staffChecklist, type StaffItem } from '@/lib/staff';
+import { staffChecklist, staffDocUntil, staffEnded, staffRecordUntil, type StaffItem } from '@/lib/staff';
 import { romeToday } from '@/lib/reminders';
 import { Action, Badge, Field, fmt, SectionTitle } from './shared';
 
@@ -41,12 +42,15 @@ const LABEL = { ok: 'Presente', in_scadenza: 'In scadenza', scaduto: 'Scaduto', 
 export default function StaffTab({
   employees,
   documents,
+  allDocuments = documents,
   busy,
   action,
   onNewDocument,
 }: {
   employees: Entry<EmployeeData>[];
   documents: Entry<DocumentData>[];
+  /** Archived documents too: a former employee's file is deleted only when nothing is left. */
+  allDocuments?: Entry<DocumentData>[];
   busy: boolean;
   action: Action;
   onNewDocument: (employee: Entry<EmployeeData>, item: StaffItem) => void;
@@ -85,8 +89,73 @@ export default function StaffTab({
     if (ok) setLinking(null);
   }
 
+  // Former employees: the file is kept for the legal terms, then the owner deletes it document by document.
+  const retention = (emp: Entry<EmployeeData>) => {
+    if (!staffEnded(emp.data))
+      return (
+        <p className="smallnote">
+          Indica la data di fine rapporto: serve a calcolare per quanto conservare i documenti.
+        </p>
+      );
+    const mine = allDocuments.filter(d => d.data.employeeId === emp.id);
+    const recordUntil = staffRecordUntil(emp.data)!;
+    const purge = (body: object, what: string) =>
+      window.confirm(`Cancellare definitivamente ${what}? Non si potrà recuperare.`) &&
+      action({ action: 'purge', ...body }, 'Cancellato definitivamente');
+    return (
+      <div className="staffretention">
+        <p className="smallnote">
+          Conservazione dopo la fine del rapporto: documento d’identità e codice fiscale 12 mesi, permesso di
+          soggiorno 6 anni, il resto 5 anni. Alla scadenza li cancelli tu da qui.
+        </p>
+        <ul className="stafflist">
+          {mine.map(d => {
+            const until = staffDocUntil(emp.data, d.data)!;
+            const due = until.until <= today;
+            return (
+              <li key={d.id}>
+                <Trash2 size={16} className={due ? 'st-bad' : 'st-miss'} />
+                <span>
+                  <strong>{d.data.title}</strong>
+                  <small>
+                    {due ? 'Cancellabile dal ' : 'Si conserva fino al '}
+                    {fmt(until.until)}
+                  </small>
+                </span>
+                {due && (
+                  <button
+                    className="textbutton"
+                    disabled={busy}
+                    onClick={() => purge({ kind: 'document', id: d.id, version: d.updated }, d.data.title)}
+                  >
+                    Cancella
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        {!mine.length &&
+          (recordUntil <= today ? (
+            <button
+              className="textbutton"
+              disabled={busy}
+              onClick={() =>
+                purge({ kind: 'employee', id: emp.id, version: emp.updated }, 'la scheda di ' + emp.data.name)
+              }
+            >
+              <Trash2 size={15} /> Cancella la scheda
+            </button>
+          ) : (
+            <p className="smallnote">La scheda si conserva fino al {fmt(recordUntil)}.</p>
+          ))}
+      </div>
+    );
+  };
+
   const card = (emp: Entry<EmployeeData>) => {
-    const items = staffChecklist(emp, documents, today);
+    // The checklist of what to collect is for current employees only.
+    const items = emp.data.active ? staffChecklist(emp, documents, today) : [];
     const done = items.filter(i => i.status === 'ok').length;
     return (
       <article className="panel staffcard" key={emp.id}>
@@ -103,9 +172,11 @@ export default function StaffTab({
             </span>
           </div>
           <span className="row">
-            <Badge tone={done === items.length ? 'blue' : 'amber'}>
-              {done}/{items.length}
-            </Badge>
+            {emp.data.active && (
+              <Badge tone={done === items.length ? 'blue' : 'amber'}>
+                {done}/{items.length}
+              </Badge>
+            )}
             <button
               className="textbutton"
               onClick={() => {
@@ -118,6 +189,7 @@ export default function StaffTab({
           </span>
         </div>
         {emp.data.externalSource && <p className="smallnote">Dati ricevuti da {emp.data.externalSource}.</p>}
+        {!emp.data.active && retention(emp)}
         <ul className="stafflist">
           {items.map(item => (
             <li key={item.key}>

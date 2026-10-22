@@ -137,3 +137,37 @@ export function staffSummary(employees: { id: string; data: EmployeeData }[], do
       };
     });
 }
+
+// ── Retention after the end of employment (Blindo documento 10 «Conservazione») ──────────────
+// Identity and tax-code copies: 12 months; residence permits: 6 years (proof of the checks,
+// art. 22 c. 12 D.Lgs. 286/1998); everything else: 5 years (art. 2948 c.c.). The owner confirms
+// every deletion: nothing about employees is deleted automatically.
+export const STAFF_KEEP_MONTHS: Record<string, number> = { identita: 12, codicefiscale: 12, permesso: 72 };
+export const STAFF_DEFAULT_MONTHS = 60;
+
+const addMonths = (day: string, months: number) => {
+  const d = new Date(day + 'T00:00:00Z');
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Former employee with an end date: the only case in which their file can be deleted. */
+export const staffEnded = (e: EmployeeData) => !e.active && /^\d{4}-\d{2}-\d{2}$/.test(e.endDate || '');
+
+/** Day from which a document of a former employee can be deleted, or null while employed. */
+export function staffDocUntil(employee: EmployeeData, doc: DocumentData) {
+  if (!staffEnded(employee)) return null;
+  const rule = STAFF_RULES.find(r => r.key in STAFF_KEEP_MONTHS && r.match.test(text(doc)));
+  return {
+    key: rule?.key || 'altro',
+    until: addMonths(employee.endDate, rule ? STAFF_KEEP_MONTHS[rule.key] : STAFF_DEFAULT_MONTHS),
+  };
+}
+
+/** Day from which the record of a former employee can be deleted (once no document is linked). */
+export const staffRecordUntil = (employee: EmployeeData) =>
+  staffEnded(employee) ? addMonths(employee.endDate, STAFF_DEFAULT_MONTHS) : null;
+
+/** Identity papers, permits, payslips, medical certificates: filled in by hand, never sent to the AI. */
+export const SENSITIVE_STAFF_DOC =
+  /identit|\bcie\b|passaport|patente|permesso di soggiorno|ricevuta (di )?rinnovo|codice fiscale|tessera sanitaria|busta paga|cedolin|certificat\w* medic|malattia/i;

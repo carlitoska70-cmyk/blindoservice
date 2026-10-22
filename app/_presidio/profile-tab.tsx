@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { Entry, Profile } from '@/lib/product';
 import { Action, Badge, download, Field, fmt, Pick, SectionTitle } from './shared';
 import LinksPanel from './links-panel';
+import { NOTICE_TODO, noticeProblem, portalNoticeTemplate } from '@/lib/portal-notice';
 
 const kindLabel: Record<string, string> = { document: 'Documento', inspection: 'Controllo', task: 'Azione' };
 const entryTitle = (x: Entry) => x.data.title || x.data.authority || 'Senza titolo';
@@ -255,6 +256,30 @@ export default function ProfileTab({
             placeholder="Inserisci l’informativa dell’attività: titolare e contatti; dati e finalità; basi giuridiche; fornitori/destinatari ed eventuali trasferimenti; tempi o criteri di conservazione; diritti e modalità di esercizio; reclamo al Garante; campi necessari e modalità alternativa di esibizione. La presa visione non equivale a un consenso generale."
           />
         </Field>
+        <div className="row noticehelp">
+          <button
+            type="button"
+            className="textbutton"
+            onClick={() => {
+              const current = (draft.portalNotice || '').trim();
+              if (
+                current &&
+                !window.confirm('Sostituire il testo attuale con il modello? Il testo attuale andrà perso.')
+              )
+                return;
+              onDraft({ ...draft, portalNotice: portalNoticeTemplate(draft) });
+            }}
+          >
+            Usa il modello di informativa
+          </button>
+          {draft.portalNotice && noticeProblem(draft.portalNotice) && (
+            <small className="muted">
+              {draft.portalNotice.includes(NOTICE_TODO)
+                ? `Completa le parti «${NOTICE_TODO}» prima di attivare il portale.`
+                : 'Il testo è troppo breve per attivare il portale.'}
+            </small>
+          )}
+        </div>
         <div className="formfooter">
           <p className="muted">I confronti usano i campi inseriti; non consultano registri pubblici.</p>
           <button className="button primary" disabled={busy}>

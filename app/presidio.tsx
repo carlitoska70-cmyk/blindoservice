@@ -440,6 +440,7 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
                   documents={documents}
                   inspections={inspections}
                   tasks={tasks}
+                  records={records}
                   onOpen={open}
                   onTab={setTab}
                   onFilter={c => {
@@ -557,6 +558,7 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
                 <StaffTab
                   employees={employees}
                   documents={documents}
+                  allDocuments={records.filter(x => x.kind === 'document') as Entry<DocumentData>[]}
                   busy={busy}
                   action={action}
                   onNewDocument={(emp, item) =>

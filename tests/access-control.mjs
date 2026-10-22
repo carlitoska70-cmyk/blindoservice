@@ -64,6 +64,7 @@ globalThis.__presidioTest = {
       },
     },
     BUCKET: {
+      delete: async key => void bucket.delete(key),
       put: async (key, value) =>
         bucket.set(key, value instanceof Uint8Array ? Buffer.from(value).toString('latin1') : String(value)),
       get: async key =>
@@ -110,6 +111,8 @@ const files = [
   'app/api/holding/v1/proposte/route.ts',
   'lib/news.ts',
   'app/api/novita/route.ts',
+  'lib/retention.ts',
+  'lib/portal-notice.ts',
 ];
 for (const file of files) {
   let source = readFileSync(file, 'utf8');
@@ -213,13 +216,12 @@ try {
     office: 'Ufficio',
     role: 'Ruolo',
     purpose: 'Controllo test',
-    plate: '',
+    plate: 'AB123CD',
     noticeRead: true,
   };
-  // Plate is required (nome, cognome, targa, ufficio).
-  assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 400);
-  identity.plate = 'AB123CD';
+  // The plate is no longer asked (minimisation): a stale client sending it gets it dropped.
   assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 200);
+  assert(!database.prepare('SELECT data FROM visits WHERE id=?').get(visit).data.includes('AB123CD'));
   assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 409);
   assert.equal((await portal.POST(req('/api/portal', { action: 'search', query: 'SCIA' }))).status, 403);
   passed++;
@@ -768,6 +770,238 @@ try {
     globalThis.fetch = fetchBefore;
     delete env.OPENAI_API_KEY;
   }
+  passed++;
+
+  // ── Data retention (documento 10 «Conservazione») ─────────────────────────────────────────
+  const staffUser = () => {
+    globalThis.__presidioTest.user = { userId: 'owner-id', email: 'staff@example.test' };
+  };
+  const keep = body => state.POST(req('/api/state', body));
+  owner();
+  x = await json(
+    await keep({
+      action: 'create',
+      kind: 'inspection',
+      data: {
+        authority: 'Polizia Municipale',
+        scope: 'Dehors',
+        officers: 'Agente RETENTION_NAME',
+        reference: '',
+        status: 'aperto',
+        outcome: '',
+        started: '2026-01-10T09:00:00.000Z',
+        ended: '',
+      },
+    }),
+  );
+  const ri = x.data.id;
+  const rowOf = id => database.prepare('SELECT data,updated FROM records WHERE id=?').get(id);
+  let row = rowOf(ri);
+  staffUser();
+  assert.equal(
+    (
+      await keep({
+        action: 'procedimento',
+        id: ri,
+        version: row.updated,
+        open: true,
+        hold: { dal: '', riferimento: '', nota: '' },
+      })
+    ).status,
+    403,
+  );
+  owner();
+  assert.equal(
+    (
+      await keep({
+        action: 'procedimento',
+        id: ri,
+        version: row.updated,
+        open: true,
+        hold: { dal: '2026-02-01', riferimento: 'Verbale 7/2026', nota: '' },
+      })
+    ).status,
+    200,
+  );
+  row = rowOf(ri);
+  assert.equal(JSON.parse(row.data).procedimento.riferimento, 'Verbale 7/2026');
+  // An edit from the form (which never carries the retention fields) keeps the hold.
+  await new Promise(r => setTimeout(r, 2));
+  assert.equal(
+    (
+      await keep({
+        action: 'update',
+        kind: 'inspection',
+        id: ri,
+        version: row.updated,
+        data: { ...JSON.parse(row.data), procedimento: undefined, outcome: 'Verbale notificato' },
+      })
+    ).status,
+    200,
+  );
+  row = rowOf(ri);
+  assert.equal(JSON.parse(row.data).procedimento.riferimento, 'Verbale 7/2026');
+  assert.equal(JSON.parse(row.data).outcome, 'Verbale notificato');
+  await new Promise(r => setTimeout(r, 2));
+  assert.equal(
+    (await keep({ action: 'procedimento', id: ri, version: row.updated, open: false })).status,
+    200,
+  );
+  row = rowOf(ri);
+  assert(JSON.parse(row.data).procedimentoChiuso);
+  // Closing twice is refused.
+  assert.equal(
+    (await keep({ action: 'procedimento', id: ri, version: row.updated, open: false })).status,
+    409,
+  );
+  passed++;
+
+  // Listening log: one row per audio file every 10 minutes, owner only.
+  database
+    .prepare('INSERT INTO files VALUES(?,?,?,?,?,?,?)')
+    .run('raudio', 'owner-id', 'controllo.webm', 'audio/webm', 'obj-raudio', 'h', now);
+  bucket.set('obj-raudio', 'audio-bytes');
+  database.prepare('INSERT INTO records VALUES(?,?,?,?,?,?)').run(
+    'revent',
+    'owner-id',
+    'event',
+    JSON.stringify({
+      inspectionId: ri,
+      speaker: '',
+      text: 'Audio',
+      tag: 'Registrazione',
+      offset: 0,
+      fileId: 'raudio',
+    }),
+    now,
+    now,
+  );
+  assert.equal((await privateFile.GET(req('/api/files?id=raudio'))).status, 200);
+  assert.equal((await privateFile.GET(req('/api/files?id=raudio'))).status, 200);
+  assert.equal(
+    database
+      .prepare(
+        "SELECT count(*) AS n FROM records WHERE kind='ascolto' AND json_extract(data,'$.fileId')='raudio'",
+      )
+      .get().n,
+    1,
+  );
+  staffUser();
+  assert.equal((await privateFile.GET(req('/api/files?id=raudio'))).status, 404);
+  passed++;
+
+  // Former employees: deletion only after the term, confirmed by the owner, never by the collaborator.
+  owner();
+  x = await json(
+    await keep({
+      action: 'create',
+      kind: 'employee',
+      data: {
+        name: 'Ex Dipendente',
+        role: '',
+        hired: '',
+        contract: '',
+        endDate: '',
+        extraUe: false,
+        designations: [],
+        medicalRequired: false,
+        active: true,
+        notes: '',
+      },
+    }),
+  );
+  const empId = x.data.id;
+  database
+    .prepare('INSERT INTO files VALUES(?,?,?,?,?,?,?)')
+    .run('fid', 'owner-id', 'ci.pdf', 'application/pdf', 'obj-fid', 'h', now);
+  bucket.set('obj-fid', '%PDF-id');
+  database
+    .prepare('INSERT INTO records VALUES(?,?,?,?,?,?)')
+    .run(
+      'docid',
+      'owner-id',
+      'document',
+      JSON.stringify({ title: 'Documento di identità – Ex Dipendente', fileId: 'fid', employeeId: empId }),
+      now,
+      now,
+    );
+  assert.equal((await keep({ action: 'purge', kind: 'document', id: 'docid', version: now })).status, 409);
+  let exEmp = rowOf(empId);
+  await new Promise(r => setTimeout(r, 2));
+  assert.equal(
+    (
+      await keep({
+        action: 'update',
+        kind: 'employee',
+        id: empId,
+        version: exEmp.updated,
+        data: { ...JSON.parse(exEmp.data), active: false, endDate: '2020-01-31' },
+      })
+    ).status,
+    200,
+  );
+  staffUser();
+  assert.equal((await keep({ action: 'purge', kind: 'document', id: 'docid', version: now })).status, 403);
+  owner();
+  exEmp = rowOf(empId);
+  assert.equal(
+    (await keep({ action: 'purge', kind: 'employee', id: empId, version: exEmp.updated })).status,
+    409,
+  );
+  assert.equal((await keep({ action: 'purge', kind: 'document', id: 'docid', version: now })).status, 200);
+  assert.equal(rowOf('docid'), undefined);
+  assert(!bucket.has('obj-fid'));
+  assert.equal(database.prepare("SELECT count(*) AS n FROM files WHERE id='fid'").get().n, 0);
+  assert.equal(
+    (await keep({ action: 'purge', kind: 'employee', id: empId, version: exEmp.updated })).status,
+    200,
+  );
+  passed++;
+
+  // After any deletion an incremental sync becomes a full reload, once.
+  x = await json(await state.GET(req('/api/state?since=2026-01-01T00:00:00.000Z')));
+  assert.equal(x.data.partial, false);
+  const cursorAfter = x.data.cursor;
+  x = await json(await state.GET(req('/api/state?since=' + cursorAfter)));
+  assert.equal(x.data.partial, true);
+  passed++;
+
+  // Access request of an officer: portal data only, no internal notes.
+  x = await json(
+    await room.POST(req('/api/control-room', { action: 'report', visitId: visit, scope: 'interessato' })),
+  );
+  assert.equal(x.status, 200);
+  assert.match(x.data.text, /art\. 15/);
+  assert.match(x.data.text, /Nome Cognome/);
+  assert(!x.data.text.includes('ANNOTAZIONI'));
+  assert(!x.data.text.includes('AB123CD'));
+  passed++;
+
+  // Nightly run: 30 days after «procedimento chiuso» the inspection loses its personal data.
+  const { runRetention } = await mod('lib/retention');
+  const far = new Date(Date.now() + 31 * 86_400_000);
+  const run = await runRetention(env, far, true);
+  assert.equal(run.ok, true);
+  const anonData = JSON.parse(rowOf(ri).data);
+  assert.equal(anonData.officers, '');
+  assert(anonData.anonimizzato);
+  assert.equal(rowOf('revent'), undefined);
+  assert(!bucket.has('obj-raudio'));
+  assert(!JSON.stringify(database.prepare('SELECT data FROM records').all()).includes('RETENTION_NAME'));
+  assert(bucket.has('objd1')); // archive documents are never touched
+  passed++;
+
+  // Portal notice: the template markers block the activation.
+  database.prepare('UPDATE profiles SET data=? WHERE owner=?').run(
+    JSON.stringify({
+      name: 'Test company',
+      portalNotice: 'Informativa [DA COMPLETARE: email] '.repeat(10),
+    }),
+    'owner-id',
+  );
+  x = await json(await room.POST(req('/api/control-room', { action: 'portal', enabled: true })));
+  assert.equal(x.status, 400);
+  assert.match(x.data.error, /DA COMPLETARE/);
   passed++;
   const { catalogue, catalogueCategories } = await mod('lib/catalogue');
   assert.equal(new Set(catalogue.map(c => c.id)).size, catalogue.length);

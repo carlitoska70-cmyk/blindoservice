@@ -1,0 +1,52 @@
+/* Data retention bar in the inspection file and notice in the overview. */
+.retentionbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-start;
+  border: 1px solid #d5e0f0;
+  background: #f4f7fc;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: #3d5272;
+}
+.retentionbar > svg {
+  flex: none;
+  margin-top: 2px;
+  color: #204d91;
+}
+.retentionbar > p {
+  flex: 1 1 320px;
+  line-height: 1.5;
+}
+.retentionbar.held {
+  background: #fff8e8;
+  border-color: #ecd9a6;
+  color: #6b5216;
+}
+.retentionbar.held > svg {
+  color: #9a6b00;
+}
+.retentionbar.done {
+  background: #f2f4f7;
+  border-color: #dde2ea;
+  color: #5c6b82;
+}
+.retentionform {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 10px;
+}
+.listenings {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+  color: #5c6b82;
+  font-size: 12px;
+}
+.retentionnotice .smallnote {
+  margin-top: 10px;
+}

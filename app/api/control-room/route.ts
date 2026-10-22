@@ -2,6 +2,8 @@ import { env } from 'cloudflare:workers';
 import { z } from 'zod';
 import { body, db, event, failure, origin, owner, response, token } from '@/lib/portal-server';
 import { authorizeVisit, inspectionInsert } from '@/lib/grants';
+import { noticeProblem } from '@/lib/portal-notice';
+import { CONTROL_DAYS } from '@/lib/retention';
 export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
@@ -42,14 +44,8 @@ export async function POST(req: Request) {
       const enabled = z.boolean().parse(b.enabled);
       if (enabled) {
         const p = await db().prepare('SELECT data FROM profiles WHERE owner=?').bind(uid).first<any>();
-        if (!p || String(JSON.parse(p.data).portalNotice || '').trim().length < 120)
-          return response(
-            {
-              error:
-                'Completa l’informativa del portale nella sezione Azienda prima di attivare gli accessi.',
-            },
-            400,
-          );
+        const problem = noticeProblem(p ? JSON.parse(p.data).portalNotice : '');
+        if (problem) return response({ error: problem }, 400);
       }
       await db()
         .prepare(
@@ -107,6 +103,51 @@ export async function POST(req: Request) {
       const result = await authorizeVisit(v, uid, ids);
       if (!result.ok) return response({ error: result.error }, result.status);
       return response({ ok: true, inspectionId: result.inspectionId });
+    }
+    if (b.action === 'report' && b.scope === 'interessato') {
+      // Access request (art. 15 GDPR) of the officer: what the portal recorded about the session,
+      // without the owner's internal notes, recordings and AI drafts.
+      const log = await db()
+        .prepare('SELECT kind,data,created FROM portal_events WHERE visit_id=? AND owner=? ORDER BY created')
+        .bind(v.id, uid)
+        .all<any>();
+      const identity = JSON.parse(v.data);
+      const line = (e: any) => {
+        const d = JSON.parse(e.data || '{}');
+        const what =
+          {
+            identificazione: 'Dati identificativi inviati',
+            ricerca: 'Ricerca: «' + (d.query || '') + '»',
+            apertura: 'Documento aperto: ' + (d.title || ''),
+            chiusura_documento: 'Documento chiuso',
+            fine: 'Sessione terminata dal visitatore',
+            revoca: 'Accesso chiuso dal titolare',
+            autorizzazione: 'Documenti abilitati alla consultazione',
+            monitoraggio: 'Fascicolo del controllo aperto dal titolare',
+            accesso: 'Portale aperto dal QR',
+            assistenza: 'Richiesta di assistenza al titolare',
+            file_erogato: 'File del documento trasmesso',
+            fine_controllo: 'Controllo concluso dal titolare',
+          }[e.kind as string] || e.kind;
+        return e.created + ' · ' + what;
+      };
+      const text = [
+        'DATI PERSONALI REGISTRATI NEL PORTALE DEI CONTROLLI (art. 15 Reg. UE 2016/679)',
+        `Generato: ${now}`,
+        `Sessione: ${v.id.slice(0, 8)}`,
+        'DATI DICHIARATI',
+        `Nome e cognome: ${[identity.firstName, identity.lastName].filter(Boolean).join(' ') || '—'}`,
+        `Ente e ufficio: ${identity.office || '—'}`,
+        `Qualifica: ${identity.role || '—'}`,
+        `Oggetto del controllo: ${identity.purpose || '—'}`,
+        `Inizio della sessione: ${v.created} · ultimo segnale: ${v.last_seen}`,
+        'ATTIVITÀ NEL PORTALE',
+        ...log.results.map(line),
+        'CONSERVAZIONE',
+        `I dati della sessione vengono cancellati in automatico ${CONTROL_DAYS} giorni dopo la fine del controllo, salvo che sia in corso un procedimento: in quel caso alla sua conclusione.`,
+        'Le eventuali registrazioni audio del colloquio non sono incluse in questo documento: la parte che la riguarda può essere chiesta al titolare.',
+      ].join('\n\n');
+      return response({ text });
     }
     if (b.action === 'report') {
       const log = await db()

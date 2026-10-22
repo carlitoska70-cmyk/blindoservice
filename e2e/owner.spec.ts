@@ -31,6 +31,16 @@ test('controllo: fascicolo, annotazione, PDF', async ({ page }) => {
   const report = await pdf;
   await expect(report.getByRole('heading', { name: 'ASP E2E' })).toBeVisible();
   await expect(report.locator('table')).toContainText('Ci mostri il piano HACCP');
+  // Retention (same test: the e2e suite stays within 10 logins per 15 minutes).
+  const bar = page.locator('.retentionbar');
+  await expect(bar).toContainText('si cancellano da soli dal');
+  await bar.getByRole('button', { name: 'Procedimento in corso' }).click();
+  await bar.getByLabel('Riferimento').fill('Verbale 12/2026');
+  await bar.getByRole('button', { name: 'Tieni i dati' }).click();
+  await expect(bar).toContainText('Procedimento in corso · Verbale 12/2026');
+  page.once('dialog', d => d.accept());
+  await bar.getByRole('button', { name: 'Procedimento chiuso' }).click();
+  await expect(bar).toContainText('30 giorni dopo la chiusura del procedimento');
 });
 
 test('azioni: crea, completa, archivia e ripristina', async ({ page }) => {

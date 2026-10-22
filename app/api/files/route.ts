@@ -61,6 +61,35 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Salvataggio allegato non riuscito. Riprova.' }, { status: 503 });
   }
 }
+/**
+ * Listening log of inspection audio («registro degli ascolti»): one row per file every 10 minutes,
+ * because the player asks for the file in several pieces. Deleted with the audio by retention.
+ */
+async function logListening(db: D1Database, owner: string, fileId: string) {
+  try {
+    const now = new Date();
+    const recent = await db
+      .prepare(
+        "SELECT id FROM records WHERE owner=? AND kind='ascolto' AND json_extract(data,'$.fileId')=? AND created>=? LIMIT 1",
+      )
+      .bind(owner, fileId, new Date(now.getTime() - 600_000).toISOString())
+      .first();
+    if (recent) return;
+    await db
+      .prepare('INSERT INTO records(id,owner,kind,data,created,updated) VALUES(?,?,?,?,?,?)')
+      .bind(
+        crypto.randomUUID(),
+        owner,
+        'ascolto',
+        JSON.stringify({ fileId }),
+        now.toISOString(),
+        now.toISOString(),
+      )
+      .run();
+  } catch {
+    console.error('listening log failed');
+  }
+}
 export async function GET(req: Request) {
   const user = await getMember();
   if (!user) return new Response('Accesso richiesto', { status: 401 });
@@ -73,6 +102,7 @@ export async function GET(req: Request) {
     if (!f || (user.role !== 'owner' && isAudio(f.mime))) return new Response('Non trovato', { status: 404 });
     const object = await env.BUCKET.get(f.object_key);
     if (!object) return new Response('Allegato non disponibile', { status: 404 });
+    if (isAudio(f.mime)) await logListening(env.DB, user.userId, id!);
     return new Response(object.body, {
       headers: {
         'Content-Type': f.mime,
