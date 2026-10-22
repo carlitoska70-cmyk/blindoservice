@@ -185,7 +185,6 @@ test('holding: segnale ed evidenze con la centrale; link HACCP solo al controllo
             lastName: 'Verifica',
             office: 'ASP E2E',
             role: 'Tecnico',
-            plate: 'ZZ000ZZ',
             purpose: 'Verifica HACCP',
             noticeRead: true,
           },
