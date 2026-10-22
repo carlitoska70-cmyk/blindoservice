@@ -703,6 +703,26 @@ try {
   );
   assert.equal(att.employeeId, emp.id);
   assert.match(att.notes, /Ricevuto da Gionti Suite/);
+  // Same data again (the daily resend): nothing changes, the accepted proposal stays accepted.
+  x = await json(await propose('dipendente', 'op-7', { name: 'Mario Prova', role: 'Caposala' }));
+  assert.deepEqual([x.status, x.data.invariata, x.data.stato], [200, true, 'accettata']);
+  x = await json(
+    await propose(
+      'documento',
+      'att-1',
+      {
+        title: 'Attestato HACCP Mario Prova',
+        category: 'Personale e formazione',
+        expires: '2029-01-01',
+        employeeExternalId: 'op-7',
+      },
+      new File(['%PDF-1.4 x'], 'att.pdf', { type: 'application/pdf' }),
+    ),
+  );
+  assert.equal(x.data.invariata, true);
+  // Changed data: back to the owner for a new decision.
+  x = await json(await propose('dipendente', 'op-7', { name: 'Mario Prova', role: 'Responsabile sala' }));
+  assert.deepEqual([x.data.aggiornata, x.data.stato], [true, 'in_attesa']);
   x = await json(await hStaff.GET(hreq('/api/holding/v1/dipendenti')));
   const mario = x.data.dipendenti.find(d => d.name === 'Mario Prova');
   assert.equal(mario.externalId, 'op-7');

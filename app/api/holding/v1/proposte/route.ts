@@ -59,15 +59,28 @@ export async function POST(req: Request) {
       return Response.json({ error: 'tipo: dipendente o documento' }, { status: 400 });
     chiave = z.string().trim().min(1).max(100).parse(chiave);
     const data = SCHEMAS[tipo].parse(dati);
-    let fileId: string | null = null;
+    const previous = await db()
+      .prepare(
+        'SELECT i.id,i.file_id,i.status,i.data,f.sha256 FROM integration_inbox i LEFT JOIN files f ON f.id=i.file_id AND f.owner=i.owner WHERE i.owner=? AND i.source=? AND i.external_key=?',
+      )
+      .bind(key.owner, key.name, tipo + ':' + chiave)
+      .first<{ id: string; file_id: string | null; status: string; data: string; sha256: string | null }>();
+    let fileId: string | null = null,
+      bytes: ArrayBuffer | null = null,
+      sha = '';
     if (file) {
       if (tipo !== 'documento' || file.size === 0 || file.size > MAX_FILE || !EXHIBITABLE.includes(file.type))
         return Response.json({ error: 'File: PDF o immagine fino a 20 MB' }, { status: 400 });
       if (!env.BUCKET) return Response.json({ error: 'Archivio non disponibile' }, { status: 503 });
-      const bytes = await file.arrayBuffer();
-      const sha = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), x =>
+      bytes = await file.arrayBuffer();
+      sha = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), x =>
         x.toString(16).padStart(2, '0'),
       ).join('');
+    }
+    // Same data (and same file) as last time: nothing changes, an accepted proposal stays accepted.
+    if (previous && previous.data === JSON.stringify(data) && (!file || sha === previous.sha256))
+      return Response.json({ ok: true, id: previous.id, invariata: true, stato: previous.status });
+    if (file && bytes) {
       fileId = crypto.randomUUID();
       const objectKey = key.owner + '/' + fileId;
       await env.BUCKET.put(objectKey, bytes, { httpMetadata: { contentType: file.type } });
@@ -85,12 +98,6 @@ export async function POST(req: Request) {
         .run();
     }
     const now = new Date().toISOString();
-    const previous = await db()
-      .prepare(
-        'SELECT id,file_id,status FROM integration_inbox WHERE owner=? AND source=? AND external_key=?',
-      )
-      .bind(key.owner, key.name, tipo + ':' + chiave)
-      .first<{ id: string; file_id: string | null; status: string }>();
     if (previous) {
       await db()
         .prepare(

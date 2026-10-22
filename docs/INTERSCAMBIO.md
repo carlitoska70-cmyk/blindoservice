@@ -36,7 +36,7 @@ JSON `{ tipo, chiaveEsterna, dati }` oppure multipart con gli stessi campi (`dat
 - `tipo: "dipendente"`, dati: `{ name, role?, hired?, contract?, endDate?, active? }`. `chiaveEsterna` = id del dipendente nel programma, per esempio l'id dell'operatore di Gionti Suite.
 - `tipo: "documento"`, dati: `{ title, category?, documentType?, issued?, expires?, holder?, employeeExternalId?, notes? }`. Con `employeeExternalId` il documento viene abbinato al dipendente già ricevuto dallo stesso programma.
 
-Se rimandi la stessa `chiaveEsterna`, la proposta viene aggiornata e non duplicata. Risposta: `201 { id, stato: "in_attesa" }`, oppure `200 { aggiornata: true }`.
+Se rimandi la stessa `chiaveEsterna` con dati (e file) diversi, la proposta viene aggiornata, non duplicata, e torna in attesa: `200 { aggiornata: true, stato: "in_attesa" }`. Se dati e file sono identici all'ultima volta non cambia niente, e una proposta già accettata resta accettata: `200 { invariata: true, stato }`. Prima volta: `201 { id, stato: "in_attesa" }`.
 
 ## Cosa manda Gionti Suite (previsto)
 
