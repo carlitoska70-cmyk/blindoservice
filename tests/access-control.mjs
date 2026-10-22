@@ -110,6 +110,7 @@ const files = [
   'app/api/holding/v1/dipendenti/route.ts',
   'app/api/holding/v1/proposte/route.ts',
   'lib/news.ts',
+  'lib/news-job.ts',
   'app/api/novita/route.ts',
   'lib/retention.ts',
   'lib/portal-notice.ts',
@@ -758,14 +759,38 @@ try {
     assert.equal((await nreq({ action: 'aggiorna' })).status, 401);
     assert.equal((await novita.GET()).status, 200);
     owner();
-    const job = token =>
-      novita.POST(
-        new Request(origin + '/api/novita', {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + token },
-        }),
-      );
-    assert.equal((await job('wrong')).status, 401);
+    // The old GitHub job (Bearer token, no session) is gone: the weekly search runs from the Cron.
+    const job = await novita.POST(
+      new Request(origin + '/api/novita', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer x'.repeat(8) },
+      }),
+    );
+    assert.equal(job.status, 403);
+    // Cron: the manual search above counts as this week's run; next Monday from 08:00 (Rome) it runs.
+    const { runNews } = await mod('lib/news-job');
+    await env.DB.prepare("INSERT OR REPLACE INTO admin_identity(slot,owner) VALUES(1,'owner-id')").run();
+    const runAt = iso => runNews(env, new Date(iso));
+    const thisWeek = new Date();
+    assert.equal((await runAt(thisWeek.toISOString())).saltata, 'non è il momento');
+    const monday = new Date(thisWeek);
+    monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
+    const day = monday.toISOString().slice(0, 10);
+    assert.equal((await runAt(day + 'T05:30:00Z')).saltata, 'non è il momento'); // 06:30 or 07:30 in Rome
+    x = await runAt(day + 'T07:10:00Z');
+    assert.equal(x.ok, true);
+    assert.equal(x.nuove, 0); // known URL, not stored twice
+    assert.equal((await runAt(day + 'T08:10:00Z')).saltata, 'non è il momento');
+    // A failed search is retried after 6 hours, not every hour.
+    const next = new Date(Date.parse(day) + 7 * 86_400_000).toISOString().slice(0, 10);
+    const okFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response('down', { status: 500 });
+    assert.equal((await runAt(next + 'T07:10:00Z')).ok, false);
+    globalThis.fetch = okFetch;
+    assert.equal((await runAt(next + 'T09:10:00Z')).saltata, 'non è il momento');
+    assert.equal((await runAt(next + 'T13:20:00Z')).ok, true);
+    delete env.OPENAI_API_KEY;
+    assert.equal((await runAt(next + 'T13:20:00Z')).saltata, 'IA non collegata');
   } finally {
     globalThis.fetch = fetchBefore;
     delete env.OPENAI_API_KEY;
