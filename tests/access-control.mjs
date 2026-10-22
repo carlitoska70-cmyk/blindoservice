@@ -90,6 +90,7 @@ const files = [
   'lib/notify.ts',
   'lib/search-terms.ts',
   'lib/openai.ts',
+  'lib/holding.ts',
   'app/api/state/route.ts',
   'app/api/files/route.ts',
   'app/api/portal/route.ts',

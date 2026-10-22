@@ -19,13 +19,40 @@ const document = (title: string, expires: string) => ({
   protocol: '',
 });
 
-test('holding: il segnale orario porta scadenze e controlli alla centrale, senza dati dei controllori', async ({
+// One login for the whole flow: the e2e suite stays within the 10 logins per IP in 15 minutes.
+test('holding: segnale ed evidenze con la centrale; link HACCP solo al controllore autorizzato', async ({
   page,
+  browser,
   baseURL,
 }) => {
-  // Fake Kassaro OS centrale on loopback.
+  // Fake Kassaro OS centrale on loopback: signal (POST) and evidence (GET).
+  const kassaro = `http://127.0.0.1:${process.env.E2E_HOLDING_PORT}`;
+  const evidence = {
+    fonte: 'Kassaro OS',
+    versione: '8.3.0',
+    generato: new Date().toISOString(),
+    base: kassaro,
+    riepilogo: { presenti: 1, parziali: 0, assenti: 0 },
+    voci: [
+      {
+        categoria: 'HACCP',
+        catalogo: 'Manuale o piano di autocontrollo',
+        stato: 'presente',
+        dettaglio: 'Manuale HACCP E2E, versione 3',
+        ultimo: rome(-2),
+        sezione: '/#/haccp',
+      },
+    ],
+    pagina_controlli: { attiva: true, url: `${kassaro}/controllo/e2e-token`, scade: null },
+  };
   const received: { auth?: string; body: any }[] = [];
+  const evidenceReads: (string | undefined)[] = [];
   const centrale = createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/api/holding/evidenze') {
+      evidenceReads.push(req.headers.authorization);
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(evidence));
+      return;
+    }
     let raw = '';
     req.on('data', chunk => (raw += chunk));
     req.on('end', () => {
@@ -83,8 +110,114 @@ test('holding: il segnale orario porta scadenze e controlli alla centrale, senza
     for (const hidden of ['Esposito', 'ZZ999ZZ', '31337', process.env.E2E_HOLDING_KEY!])
       expect(raw).not.toContain(hidden);
 
-    // The site keeps working after the cron ran.
-    expect((await page.request.get('/api/state')).ok()).toBeTruthy();
+    // Evidence: read with the same key before the signal, saved, counted in da_completare.
+    expect(evidenceReads).toEqual([`Bearer ${process.env.E2E_HOLDING_KEY}`]);
+    const gaps = body.dati.da_completare;
+    expect(gaps.evidenze_gestionale).toEqual(
+      expect.objectContaining({ presenti: 1, parziali: 0, assenti: 0 }),
+    );
+    expect(gaps.elenchi.requisiti_coperti_da_valutare).toContainEqual({
+      titolo: 'Manuale o piano di autocontrollo',
+      evidenza: 'presente',
+    });
+    expect(gaps.elenchi.documenti_da_verificare).toEqual(
+      expect.arrayContaining(['SCIA E2E holding', 'Agibilità E2E holding']),
+    );
+    expect(gaps.profilo.mancanti).toContain('Informativa del portale');
+    expect(raw).not.toContain('e2e-token');
+
+    // The site keeps working after the cron ran, and the catalogue shows the evidence.
+    const state = await (await page.request.get('/api/state')).json();
+    expect(state.records.filter((r: any) => r.kind === 'evidence')).toHaveLength(1);
+    await page.reload();
+    await page.getByRole('tab', { name: 'Catalogo' }).click();
+    await page
+      .getByPlaceholder('Es. allergeni, agibilità, gas, verbale…')
+      .fill('Manuale o piano di autocontrollo');
+    const line = page.locator('.catalog-evidence').first();
+    await expect(line).toContainText('Dal gestionale Kassaro OS: Manuale HACCP E2E, versione 3');
+    await expect(line.getByRole('link', { name: /Apri nel gestionale/ })).toHaveAttribute(
+      'href',
+      `${kassaro}/#/haccp`,
+    );
+
+    // Portal: the HACCP page of the management software reaches only an authorised inspector.
+    const owner = (path: string, data: object) =>
+      page.request.post(path, { headers: { origin: baseURL! }, data });
+    const profile = {
+      name: 'Bar E2E',
+      legalName: 'Bar E2E srl',
+      vat: '',
+      address: '',
+      city: 'Palermo',
+      region: 'Sicilia',
+      activity: 'Bar',
+      staff: 'Sì',
+      dehors: 'No',
+      reviewer: '',
+      portalNotice: 'Informativa di prova per il collaudo del portale. '.repeat(4),
+    };
+    expect((await owner('/api/state', { action: 'profile', data: profile })).ok()).toBeTruthy();
+    expect((await owner('/api/control-room', { action: 'portal', enabled: true })).ok()).toBeTruthy();
+    try {
+      const portal = (await (await page.request.get('/api/control-room')).json()).portal.id;
+      const visitor = await (await browser.newContext()).newPage();
+      await visitor.goto('/accesso');
+      const call = (action: string, data: object = {}) =>
+        visitor.evaluate(
+          async ([portal, action, data]) => {
+            const r = await fetch('/api/portal', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ portal, action, ...(data as object) }),
+            });
+            return r.status;
+          },
+          [portal, action, data] as const,
+        );
+      const read = (): Promise<any> =>
+        visitor.evaluate(async portal => (await fetch('/api/portal?portal=' + portal)).json(), portal);
+      await call('start');
+      expect(
+        await call('identify', {
+          data: {
+            firstName: 'Mario',
+            lastName: 'Verifica',
+            office: 'ASP E2E',
+            role: 'Tecnico',
+            plate: 'ZZ000ZZ',
+            purpose: 'Verifica HACCP',
+            noticeRead: true,
+          },
+        }),
+      ).toBe(200);
+      expect((await read()).haccp).toBeNull();
+
+      const visits = (await (await page.request.get('/api/control-room')).json()).visits;
+      const visit = visits.find((v: any) => v.status === 'in_attesa');
+      expect(
+        (
+          await owner('/api/control-room', {
+            action: 'grants',
+            visitId: visit.id,
+            documentIds: [],
+            identityVerified: true,
+          })
+        ).ok(),
+      ).toBeTruthy();
+      expect((await read()).haccp).toEqual({
+        url: `http://127.0.0.1:${process.env.E2E_HOLDING_PORT}/controllo/e2e-token`,
+        scade: null,
+      });
+      await visitor.reload();
+      await expect(visitor.getByRole('link', { name: 'Apri i registri HACCP' })).toHaveAttribute(
+        'href',
+        `http://127.0.0.1:${process.env.E2E_HOLDING_PORT}/controllo/e2e-token`,
+      );
+      await owner('/api/control-room', { action: 'revoke', visitId: visit.id });
+    } finally {
+      await owner('/api/control-room', { action: 'portal', enabled: false });
+    }
   } finally {
     centrale.close();
   }

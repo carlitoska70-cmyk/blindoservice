@@ -2339,3 +2339,11 @@ svg {
   border-radius: 8px;
   padding: 8px 10px;
 }
+.haccplink {
+  margin: 18px 0;
+}
+.haccplink .button {
+  display: inline-flex;
+  gap: 8px;
+  margin-top: 4px;
+}

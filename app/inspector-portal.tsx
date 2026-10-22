@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { FileText, Search, ShieldCheck, LogOut, X, Clock } from 'lucide-react';
+import { FileText, Search, ShieldCheck, LogOut, X, Clock, ExternalLink } from 'lucide-react';
 type Doc = { id: string; title: string; description: string; version: string };
 export default function InspectorPortal({ portal }: { portal: string }) {
   const [state, setState] = useState<any>(null),
@@ -276,6 +276,29 @@ export default function InspectorPortal({ portal }: { portal: string }) {
                     </button>
                   ))}
                 </div>
+              </section>
+            )}
+            {state?.haccp?.url && (
+              <section className="panel haccplink">
+                <p className="eyebrow">REGISTRI HACCP DEL LOCALE</p>
+                <p>
+                  Temperature, pulizie e non conformità sono registrate nel gestionale del locale, in una
+                  pagina di sola consultazione.
+                </p>
+                <a
+                  className="button secondary"
+                  href={state.haccp.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink size={16} />
+                  Apri i registri HACCP
+                </a>
+                {state.haccp.scade && (
+                  <p className="smallnote">
+                    Link valido fino al {new Date(state.haccp.scade).toLocaleDateString('it-IT')}.
+                  </p>
+                )}
               </section>
             )}
             <section className="historydocs">

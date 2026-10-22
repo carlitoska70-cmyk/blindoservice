@@ -1,8 +1,11 @@
-// Worker entry: the site (vinext) plus the hourly signal to the Gionti Holding centrale.
+// Worker entry: the site (vinext) plus the hourly link with the Gionti Holding centrale.
 // The cron schedule is in wrangler.jsonc ("triggers"); without HOLDING_SEGNALE_KEY it does nothing.
 import handler from 'vinext/server/fetch-handler';
 import { version } from '../package.json';
-import { sendHolding } from '../lib/holding';
+import { allCatalogue } from '../lib/catalogue-index';
+import { runHolding } from '../lib/holding';
+
+const catalogue = allCatalogue.map(c => ({ id: c.id, title: c.title }));
 
 export default {
   fetch(request, env, ctx) {
@@ -10,7 +13,7 @@ export default {
   },
   scheduled(_controller, env, ctx) {
     ctx.waitUntil(
-      sendHolding(env, { version, release: env.CF_VERSION_METADATA, now: new Date() }).then(r =>
+      runHolding(env, { version, release: env.CF_VERSION_METADATA, now: new Date() }, catalogue).then(r =>
         console.log('holding', JSON.stringify(r)),
       ),
     );

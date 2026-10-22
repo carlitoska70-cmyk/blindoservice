@@ -201,3 +201,23 @@
 .catalog-review h3 {
   overflow-wrap: anywhere;
 }
+
+.catalog-evidence {
+  margin: 10px 0 4px;
+  padding: 12px 14px;
+  border-left: 3px solid #2f6fb4;
+  background: #f4f8fd;
+  border-radius: 7px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.catalog-evidence p {
+  margin: 0;
+}
+.catalog-evidence a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-weight: 600;
+}
