@@ -1,6 +1,30 @@
 PRESIDIO — GUIDA COMPLETA PER TITOLARE E SVILUPPATORE
 Edizione PC 1.0, 17 settembre 2026 — aggiornata il 22 ottobre 2026
 
+000. VERSIONE 0.3.0 — IL GESTIONALE PARLA CON BLINDO (22 ottobre 2026)
+
+Ogni ora, prima del segnale, Blindo legge da Kassaro OS (serve la 8.3.0) le
+«evidenze»: cosa il gestionale registra già per i controlli (manuale HACCP,
+temperature, pulizie, infestanti, non conformità, fatture, lotti, allergeni,
+fornitori, ricette, MOCA, formazione).
+- Catalogo: sotto la voce con lo stesso titolo compare «Dal gestionale Kassaro
+  OS: …, aggiornato al …» con il link. Non cambia l'applicabilità: la decide il
+  titolare. In alto c'è la data dell'ultima lettura riuscita.
+- Portale del controllore: dopo l'autorizzazione del titolare, se nel gestionale
+  c'è una pagina dei controlli HACCP attiva e non scaduta, compare «Apri i
+  registri HACCP». Prima dell'autorizzazione il link non viene mai mandato.
+- Se Kassaro OS non risponde resta l'ultima lettura salvata, con la sua data.
+Il segnale ha in più dati.da_completare, che il Direttore legge in diretta:
+campi del profilo vuoti o segnaposto (solo i nomi dei campi), documenti da
+verificare, senza voce del catalogo o senza scadenza indicata, requisiti coperti
+dal gestionale ma ancora «Da valutare».
+Per completare le schede dei documenti: aprire la scheda e usare la lettura del
+PDF con l'IA, che propone i campi con la pagina e la frase citata; poi
+verificare e salvare (restano le revisioni). Una data assente resta assente:
+non è validità illimitata.
+Pubblicazione: verifiche, build, wrangler deploy (nessuna tabella nuova: le
+evidenze sono un record "evidence" nella tabella records).
+
 00. AGGIORNAMENTO 22 OTTOBRE 2026 — COLLEGAMENTO A GIONTI HOLDING (versione 0.2.0)
 
 Ogni ora, al minuto 7, il Worker manda un riepilogo alla centrale dei software
@@ -9,8 +33,9 @@ quartier generale «Gionti Holding» e il Direttore vedono:
 - documenti scaduti e in scadenza entro 30 giorni (titolo, data, giorni);
 - controlli aperti e conclusi negli ultimi 90 giorni (ente, oggetto, stato, date);
 - portale QR attivo sì/no e versione di Blindo.
-Non escono allegati, nomi/targhe/uffici/protocolli dei controllori, esiti scritti
-a mano, azioni né il profilo dell'azienda. Massimo 16 KB.
+Non escono allegati, nomi/targhe/protocolli dei controllori, esiti scritti a
+mano, azioni né i valori del profilo. L'«ente» è l'istituzione (per i controlli
+nati dal QR, l'ufficio dichiarato: ASP, NAS…), non una persona. Massimo 16 KB.
 
 Attivazione (una volta sola, SOLO sulla copia di Carlo):
     cd "$HOME/Desktop/blindoservice"
@@ -18,7 +43,8 @@ Attivazione (una volta sola, SOLO sulla copia di Carlo):
 Chiede la chiave del software «blindo» (strumento chiave_software del connettore
 Kassaro OS, inizia con kosw_), la prova con la centrale e la salva soltanto come
 segreto HOLDING_SEGNALE_KEY del Worker. Non si vede mentre la incolli e non va in
-nessun file. Una chiave nuova annulla la precedente: in quel caso rilancia il comando.
+nessun file. Una chiave nuova annulla la precedente: crearne UNA sola e salvarla
+subito (il 22/10 due chiavi create quasi insieme si sono annullate a vicenda).
 Nelle copie date ad altri esercenti NON impostare la chiave: senza chiave Blindo
 non legge e non manda nulla, e i loro dati restano soltanto nel loro archivio.
 

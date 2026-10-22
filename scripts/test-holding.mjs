@@ -4,9 +4,15 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   MAX_BYTES,
   collectHolding,
+  controlPage,
+  evidenceLink,
   holdingSummary,
   holdingTarget,
+  parseEvidence,
+  profileGaps,
+  runHolding,
   sendHolding,
+  syncEvidence,
   HOLDING_URL,
 } from '../lib/holding.ts';
 
@@ -139,7 +145,8 @@ function fixture() {
   sqlite.exec(
     'CREATE TABLE admin_identity(slot INTEGER PRIMARY KEY, owner TEXT);' +
       'CREATE TABLE records(id TEXT PRIMARY KEY,owner TEXT,kind TEXT,data TEXT,created TEXT,updated TEXT);' +
-      'CREATE TABLE portals(id TEXT PRIMARY KEY,owner TEXT,enabled INTEGER,created TEXT);',
+      'CREATE TABLE portals(id TEXT PRIMARY KEY,owner TEXT,enabled INTEGER,created TEXT);' +
+      'CREATE TABLE profiles(owner TEXT PRIMARY KEY,data TEXT,updated TEXT);',
   );
   const add = (id, owner, r) =>
     sqlite
@@ -158,6 +165,9 @@ function fixture() {
         },
         async all() {
           return { results: sqlite.prepare(query).all(...params) };
+        },
+        async run() {
+          return { meta: { changes: sqlite.prepare(query).run(...params).changes } };
         },
       };
     },
@@ -243,4 +253,205 @@ test('invio: chiave, formato e nessun errore che fermi Blindo', async () => {
   calls.length = 0;
   assert.equal((await sendHolding({ DB: broken, HOLDING_SEGNALE_KEY: key }, meta, ok)).stato, 'errore');
   assert.equal(JSON.parse(calls[0].init.body).testo, 'Archivio non leggibile');
+});
+
+const evidenceAnswer = {
+  fonte: 'Kassaro OS',
+  versione: '8.3.0',
+  generato: '2026-10-22T09:59:00.000Z',
+  base: 'https://kassaro-os.onrender.com',
+  riepilogo: { presenti: 9, parziali: 9, assenti: 9 },
+  voci: [
+    {
+      categoria: 'HACCP',
+      catalogo: 'Manuale o piano di autocontrollo',
+      stato: 'presente',
+      dettaglio: 'Manuale HACCP, versione 3 salvata il 2026-10-20',
+      ultimo: '2026-10-20',
+      sezione: '/#/haccp',
+    },
+    {
+      categoria: 'HACCP',
+      catalogo: 'Monitoraggio infestanti',
+      stato: 'assente',
+      dettaglio: 'Nessun controllo infestanti registrato',
+      sezione: '//altrove.example/x',
+    },
+    {
+      categoria: 'Alimenti',
+      catalogo: 'Schede ingredienti e allergeni',
+      stato: 'parziale',
+      dettaglio: '31 schede, 0 verificate',
+      ultimo: 'ieri',
+      sezione: 'javascript:alert(1)',
+    },
+    { catalogo: 'Voce senza stato', dettaglio: 'scartata' },
+  ],
+  pagina_controlli: {
+    attiva: true,
+    url: 'https://kassaro-os.onrender.com/controllo/abc123',
+    scade: '2026-11-22T00:00:00.000Z',
+  },
+};
+
+test('evidenze: validate, link solo verso il gestionale, voci sbagliate scartate', () => {
+  const e = parseEvidence(evidenceAnswer, now);
+  assert.equal(e.base, 'https://kassaro-os.onrender.com');
+  assert.equal(e.salvato, now.toISOString());
+  assert.deepEqual(e.riepilogo, { presenti: 1, parziali: 1, assenti: 1 });
+  assert.equal(e.voci.length, 3);
+  assert.equal(evidenceLink(e, e.voci[0]), 'https://kassaro-os.onrender.com/#/haccp');
+  assert.equal(evidenceLink(e, e.voci[1]), null, 'niente link verso altri siti');
+  assert.equal(evidenceLink(e, e.voci[2]), null, 'niente javascript:');
+  assert.equal(e.voci[2].ultimo, undefined, 'solo date AAAA-MM-GG');
+  assert.deepEqual(controlPage(e, now), {
+    url: 'https://kassaro-os.onrender.com/controllo/abc123',
+    scade: '2026-11-22T00:00:00.000Z',
+  });
+  assert.equal(controlPage(e, new Date('2026-11-23T00:00:00Z')), null, 'link scaduto');
+  const foreign = parseEvidence(
+    { ...evidenceAnswer, pagina_controlli: { attiva: true, url: 'https://altrove.example/controllo/x' } },
+    now,
+  );
+  assert.equal(controlPage(foreign, now), null, 'pagina su un altro sito rifiutata');
+  assert.equal(parseEvidence({ ...evidenceAnswer, base: 'http://kassaro-os.onrender.com' }, now), null);
+  assert.equal(parseEvidence('<html>', now), null);
+});
+
+test('profilo: campi vuoti e segnaposto, senza mai i valori', () => {
+  assert.deepEqual(
+    profileGaps({
+      name: 'Caffè del Kassaro',
+      legalName: '',
+      vat: '07434420829',
+      address: 'Corso Vittorio Emanuele 390',
+      city: 'Palermo',
+      region: 'Sicilia',
+      activity: 'Bar',
+      reviewer: 'xxx',
+      portalNotice: 'ciao',
+      staff: 'Da confermare',
+      dehors: 'Sì',
+    }),
+    {
+      mancanti: ['Ragione sociale'],
+      segnaposto: ['Revisore (legale o consulente)', 'Informativa del portale'],
+      da_confermare: ['Personale dipendente'],
+    },
+  );
+  assert.deepEqual(profileGaps({ portalNotice: 'Informativa '.repeat(5) }).segnaposto, [
+    'Informativa del portale',
+  ]);
+});
+
+test('da completare: documenti, requisiti coperti dal gestionale ancora da valutare', () => {
+  const catalogue = [
+    { id: 'cat-5-1', title: 'Manuale o piano di autocontrollo' },
+    { id: 'cat-6-3', title: 'Schede ingredienti e allergeni' },
+    { id: 'cat-6-9', title: 'Monitoraggio infestanti' },
+  ];
+  const s = holdingSummary({
+    ...meta,
+    owner: true,
+    portalEnabled: false,
+    catalogue,
+    profile: {
+      name: 'Caffè del Kassaro',
+      vat: '07434420829',
+      portalNotice: 'ciao',
+      staff: 'Sì',
+      dehors: 'Sì',
+    },
+    records: [
+      doc('SCIA', '2027-01-01', { reviewed: true, catalogId: 'cat-1-1' }),
+      doc('Visura', '', { reviewed: false }),
+      doc('Planimetria', '', { reviewed: false, catalogIds: ['cat-2-1'] }),
+      { kind: 'requirement', data: { catalogId: 'cat-6-3', status: 'Applicabile' } },
+      { kind: 'evidence', data: parseEvidence(evidenceAnswer, now) },
+    ],
+  });
+  const d = s.dati.da_completare;
+  assert.deepEqual(d.documenti.da_verificare, 2);
+  assert.deepEqual(d.documenti.senza_catalogo, 1);
+  assert.deepEqual(d.documenti.senza_scadenza, 2);
+  assert.match(d.documenti.nota, /non è validità illimitata/);
+  assert.deepEqual(d.elenchi.documenti_da_verificare, ['Visura', 'Planimetria']);
+  assert.deepEqual(d.elenchi.documenti_senza_catalogo, ['Visura']);
+  // Covered by the management software and still undecided: only the manual (allergens already decided,
+  // pests absent in the software).
+  assert.equal(d.requisiti_coperti_da_valutare, 1);
+  assert.deepEqual(d.elenchi.requisiti_coperti_da_valutare, [
+    { titolo: 'Manuale o piano di autocontrollo', evidenza: 'presente' },
+  ]);
+  assert.deepEqual(d.evidenze_gestionale, {
+    lette_il: now.toISOString(),
+    presenti: 1,
+    parziali: 1,
+    assenti: 1,
+  });
+  assert.deepEqual(d.profilo.segnaposto, ['Informativa del portale']);
+  const raw = JSON.stringify(s);
+  for (const hidden of ['07434420829', 'ciao', 'controllo/abc123'])
+    assert.ok(!raw.includes(hidden), `non deve uscire: ${hidden}`);
+  assert.ok(raw.length <= 16_384);
+});
+
+test('evidenze dal gestionale: salvate ogni ora, l’ultima resta se la centrale non risponde', async () => {
+  const { sqlite, add, db } = fixture();
+  sqlite.exec("INSERT INTO admin_identity VALUES(1,'carlo')");
+  add('d1', 'carlo', doc('SCIA', '2026-10-01'));
+  const env = { DB: db, HOLDING_SEGNALE_KEY: 'kosw_' + 'k'.repeat(43) };
+  const seen = [];
+  const centrale =
+    (evidence, status = 200) =>
+    async (url, init) => {
+      seen.push({ url, method: init.method, auth: init.headers.Authorization });
+      if (init.method === 'GET') return new Response(JSON.stringify(evidence), { status });
+      return new Response('{"ok":true}', { status: 200 });
+    };
+  const stored = () => sqlite.prepare("SELECT id,owner,kind,data FROM records WHERE kind='evidence'").all();
+
+  const first = await runHolding(
+    env,
+    meta,
+    [{ id: 'cat-5-1', title: 'Manuale o piano di autocontrollo' }],
+    centrale(evidenceAnswer),
+  );
+  assert.deepEqual(first.evidenze, { saved: true, voci: 3 });
+  assert.equal(first.segnale.sent, true);
+  assert.deepEqual(
+    seen.map(x => [x.method, x.url]),
+    [
+      ['GET', 'https://kassaro-os.onrender.com/api/holding/evidenze'],
+      ['POST', HOLDING_URL],
+    ],
+  );
+  assert.equal(seen[0].auth, `Bearer ${env.HOLDING_SEGNALE_KEY}`);
+  assert.deepEqual(
+    stored().map(r => [r.id, r.owner, r.kind]),
+    [['evidenze:carlo', 'carlo', 'evidence']],
+  );
+
+  // Kassaro OS 8.2.0 answers the unknown path with a page, then goes offline: the saved reading stays.
+  const later = { ...meta, now: new Date('2026-10-22T11:00:00Z') };
+  const page = async (url, init) =>
+    init.method === 'GET' ? new Response('<html></html>', { status: 200 }) : new Response('{}');
+  assert.equal(
+    (await syncEvidence(env, later.now, page)).reason,
+    'Evidenze non valide (serve Kassaro OS 8.3.0)',
+  );
+  const down = async () => {
+    throw new TypeError('fetch failed');
+  };
+  assert.deepEqual(await syncEvidence(env, later.now, down), {
+    saved: false,
+    reason: 'Centrale non raggiungibile',
+  });
+  assert.equal((await syncEvidence(env, later.now, centrale({}, 401))).status, 401);
+  assert.equal(JSON.parse(stored()[0].data).salvato, now.toISOString(), 'resta la lettura delle 12');
+
+  // Without the key nothing is read, nothing is called.
+  seen.length = 0;
+  assert.equal((await runHolding({ DB: db }, meta, [], centrale(evidenceAnswer))).segnale.sent, false);
+  assert.equal(seen.length, 0);
 });

@@ -2031,3 +2031,11 @@ svg {
   background: #2c65ae;
   transition: width 0.3s;
 }
+.haccplink {
+  margin: 18px 0;
+}
+.haccplink .button {
+  display: inline-flex;
+  gap: 8px;
+  margin-top: 4px;
+}

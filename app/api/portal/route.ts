@@ -13,6 +13,7 @@ import {
   token,
   visitor,
 } from '@/lib/portal-server';
+import { controlPage } from '@/lib/holding';
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   try {
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
     if (!id || id.length > 100) return response({ error: 'Accesso non disponibile' }, 404);
     const p = await db()
       .prepare(
-        'SELECT p.id,p.enabled,r.data FROM portals p LEFT JOIN profiles r ON p.owner=r.owner WHERE p.id=?',
+        'SELECT p.id,p.owner,p.enabled,r.data FROM portals p LEFT JOIN profiles r ON p.owner=r.owner WHERE p.id=?',
       )
       .bind(id)
       .first<any>();
@@ -32,8 +33,15 @@ export async function GET(req: Request) {
       );
     let v = await visitor(req);
     if (v?.portal_id !== id) v = null;
-    let found: any[] = [];
+    let found: any[] = [],
+      haccp: ReturnType<typeof controlPage> = null;
     if (v?.status === 'autorizzata') {
+      // The management software's HACCP page (Kassaro OS), offered only to an authorised inspector.
+      const e = await db()
+        .prepare("SELECT data FROM records WHERE id=? AND owner=? AND kind='evidence'")
+        .bind('evidenze:' + p.owner, p.owner)
+        .first<{ data: string }>();
+      haccp = e ? controlPage(JSON.parse(e.data), new Date()) : null;
       const rows = await db()
         .prepare(
           "SELECT g.document_id AS id,g.title,g.description,g.version FROM grants g WHERE g.visit_id=? AND EXISTS (SELECT 1 FROM portal_events e WHERE e.visit_id=g.visit_id AND e.kind='ricerca' AND e.data LIKE '%'||g.document_id||'%')",
@@ -47,6 +55,7 @@ export async function GET(req: Request) {
       notice: p.data ? JSON.parse(p.data).portalNotice || '' : '',
       visit: safeVisit(v),
       history: found,
+      haccp,
     });
   } catch (e) {
     return failure(e);

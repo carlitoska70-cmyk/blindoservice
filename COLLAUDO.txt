@@ -1,3 +1,26 @@
+IL GESTIONALE PARLA CON BLINDO — 22 OTTOBRE 2026 (branch segnale-holding, 0.3.0)
+
+RISULTATI EFFETTIVI
+- scripts/test-holding.mjs: 12/12. Nuovi: evidenze validate (link solo verso il
+  gestionale, niente javascript: né altri siti, date solo AAAA-MM-GG, pagina HACCP
+  scaduta o su altro sito rifiutata); campi del profilo vuoti o segnaposto senza
+  mai i valori; da_completare con documenti e requisiti coperti ancora da valutare;
+  evidenze salvate e conservate se la centrale risponde con una pagina, è giù o
+  rifiuta la chiave; senza chiave nessuna chiamata.
+- End-to-end Playwright 10/10. e2e/holding.spec.ts: il Cron legge le evidenze con la
+  chiave PRIMA del segnale, il segnale porta da_completare e non il link HACCP, il
+  Catalogo mostra «Dal gestionale Kassaro OS» con il link giusto; nel portale il
+  link ai registri HACCP NON arriva al controllore in attesa e arriva dopo
+  l'autorizzazione del titolare.
+- typecheck e lint 0 errori; test di accesso e dei moduli invariati.
+
+LIMITI
+- Kassaro OS 8.3.0 (GET /api/holding/evidenze) non è ancora pubblicata: fino ad
+  allora Blindo registra «Evidenze non valide (serve Kassaro OS 8.3.0)» e il resto
+  funziona come nella 0.2.0. Provato solo con la finta centrale.
+
+------------------------------------------------------------------------
+
 COLLEGAMENTO A GIONTI HOLDING — 22 OTTOBRE 2026 (branch segnale-holding, 0.2.0)
 
 RISULTATI EFFETTIVI

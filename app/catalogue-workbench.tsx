@@ -9,6 +9,8 @@ import {
   itemStatus,
   normalized,
 } from '@/lib/catalogue-matching';
+import { evidenceLink, normalizedTitle, type Evidence, type EvidenceItem } from '@/lib/holding';
+import { ExternalLink } from 'lucide-react';
 import './catalogue-workbench.css';
 import CatalogueAutomation from './catalogue-automation';
 import ExistingDocuments from './catalogue-existing';
@@ -80,6 +82,35 @@ function Assessment({ item, old, busy, onSave }: any) {
     </div>
   );
 }
+const day = (d: string) => new Date(d.length === 10 ? d + 'T12:00:00Z' : d).toLocaleDateString('it-IT');
+/** What the management software (Kassaro OS) already records for this item. It never changes applicability. */
+function SoftwareEvidence({ evidence, item }: { evidence: Evidence; item: EvidenceItem }) {
+  const link = evidenceLink(evidence, item);
+  return (
+    <div className="catalog-evidence">
+      <p>
+        <span
+          className={'badge ' + ({ presente: 'blue', parziale: 'amber', assente: '' } as const)[item.stato]}
+        >
+          {
+            {
+              presente: 'Nel gestionale',
+              parziale: 'In parte nel gestionale',
+              assente: 'Non nel gestionale',
+            }[item.stato]
+          }
+        </span>{' '}
+        Dal gestionale Kassaro OS: {item.dettaglio}
+        {item.ultimo ? ', aggiornato al ' + day(item.ultimo) : ''}.
+      </p>
+      {link && (
+        <a href={link} target="_blank" rel="noopener noreferrer">
+          Apri nel gestionale <ExternalLink size={14} />
+        </a>
+      )}
+    </div>
+  );
+}
 export default function CatalogueWorkbench(props: Props) {
   const { records, profile, busy, onAdd, onSave, onLink, onEdit, onTask, onRefresh, onLinkMany } = props;
   const [query, setQuery] = useState(''),
@@ -91,6 +122,11 @@ export default function CatalogueWorkbench(props: Props) {
   const rows = useMemo(
     () => allCatalogue.map(item => ({ item, ...itemStatus(item, records, profile) })),
     [records, profile],
+  );
+  const evidence: Evidence | undefined = records.find(r => r.kind === 'evidence')?.data;
+  const fromSoftware = useMemo(
+    () => new Map((evidence?.voci || []).map(v => [normalizedTitle(v.catalogo), v])),
+    [evidence],
   );
   const stats = {
     missing: rows.filter(r => r.state === 'Originale da reperire').length,
@@ -206,6 +242,15 @@ export default function CatalogueWorkbench(props: Props) {
         voci sono un elenco di lavoro per bar e ristorazione: non sono tutte obbligatorie. Le condizioni
         dipendono da attività, sede, personale e impianti. Un file presente non prova regolarità o validità.
       </p>
+      {evidence && (
+        <p className="catalog-note">
+          Evidenze del gestionale Kassaro OS lette il {day(evidence.salvato)} alle{' '}
+          {new Date(evidence.salvato).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}:{' '}
+          {evidence.riepilogo.presenti} presenti, {evidence.riepilogo.parziali} parziali,{' '}
+          {evidence.riepilogo.assenti} assenti. Mostrano cosa registra il gestionale: l’applicabilità e la
+          verifica restano decise dal responsabile.
+        </p>
+      )}
       {profile.city && normalized(profile.city) !== 'palermo' && (
         <p className="notice">
           Il profilo indica {profile.city}: le voci con territorio Palermo richiedono adattamento al Comune
@@ -283,6 +328,9 @@ export default function CatalogueWorkbench(props: Props) {
             {r.applicability} · {r.item.territory} · {r.item.basis}
             {r.item.checkedOn ? ' · ricerca ' + r.item.checkedOn : ''}
           </p>
+          {evidence && fromSoftware.has(normalizedTitle(r.item.title)) && (
+            <SoftwareEvidence evidence={evidence} item={fromSoftware.get(normalizedTitle(r.item.title))!} />
+          )}
           {!!r.docs.length && (
             <div className="catalog-linked">
               {r.docs.map(doc => (

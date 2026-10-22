@@ -83,6 +83,7 @@ const files = [
   'lib/document-schema.ts',
   'lib/schemas.ts',
   'lib/portal-server.ts',
+  'lib/holding.ts',
   'app/api/state/route.ts',
   'app/api/files/route.ts',
   'app/api/portal/route.ts',

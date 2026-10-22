@@ -14,7 +14,9 @@ Le note di stato aggiornate nella guida prevalgono sui passaggi storici di PRODU
   su loopback. wrangler.jsonc è produzione, wrangler.local.json sviluppo.
 - `worker/index.ts` è l'ingresso del Worker (sito + Cron della holding): tenerlo sottile.
   Il segnale alla holding (lib/holding.ts) manda solo conteggi e titoli, mai dati dei
-  controllori; parte solo con il segreto HOLDING_SEGNALE_KEY, da non dare ad altri esercenti.
+  controllori né valori del profilo; le evidenze del gestionale sono un record `evidence`
+  (sola lettura per il client). Tutto parte solo con il segreto HOLDING_SEGNALE_KEY, da non
+  dare ad altri esercenti.
 - Non allentare il login per LAN o online. Non rimuovere getOperator,
   verifiche owner, origine, autorizzazioni visitatori e protezione allegati.
 - Prima di consegnare: `corepack pnpm run typecheck`, `lint` (0 errori),
