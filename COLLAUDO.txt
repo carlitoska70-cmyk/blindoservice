@@ -1,3 +1,26 @@
+CONSERVAZIONE DEI DATI — 22 OTTOBRE 2026 (branch conservazione, 0.3.1)
+Privacy del Caffè del Kassaro, documento 10: regole in docs/CONSERVAZIONE.md.
+
+RISULTATI EFFETTIVI
+- scripts/test-retention.mjs: 9/9 (120 giorni dall'ultima attività compresi note e visite,
+  procedimento in corso e chiuso, avviso 14 giorni, cancellazione su SQLite e R2 finti:
+  documenti dell'archivio e fascicoli bloccati restano, esecuzione ogni 20 ore, errori
+  senza eccezioni; termini degli ex dipendenti; modello dell'informativa).
+- tests/access-control.mjs: 30/30 (procedimento solo del titolare, modifica che conserva
+  il blocco, registro degli ascolti, cancellazione dei documenti degli ex dipendenti,
+  ricarica completa dopo una cancellazione, pulizia sulle rotte vere, dati per
+  l'interessato, attivazione bloccata con «DA COMPLETARE», portale senza targa).
+- End-to-end Playwright: 10/10, compresi i passi della conservazione dentro
+  «controllo: fascicolo, annotazione, PDF» (la serie resta a 10 login).
+- typecheck, lint 0 errori, formato.
+
+LIMITI DELLA VERIFICA
+- Nel database online non ci sono controlli né visite: la prima pulizia vera non cancella
+  nulla. Il Cron è verificato dai log del Worker, non su dati reali.
+- Nessuna prova su Safari/iPhone reale.
+
+------------------------------------------------------------------------
+
 REGISTRO GENERALE E CONTROLLO LIVE — 22 OTTOBRE 2026 (branch rilascio-registro, 0.3.0)
 Unione di main 0.2.0 (segnale a Gionti Holding) con controllo-live e interscambio.
 
