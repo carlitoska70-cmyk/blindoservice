@@ -57,16 +57,40 @@ export const profileSchema = z.object({
   portalNotice: str(12000).optional(),
 });
 
+export const DESIGNATIONS = [
+  'Preposto',
+  'RLS',
+  'Addetto primo soccorso',
+  'Addetto antincendio',
+  'Responsabile HACCP',
+] as const;
+export const employeeSchema = z.object({
+  name: str(120).min(1),
+  role: str(120),
+  hired: date,
+  contract: str(60),
+  endDate: date,
+  extraUe: z.boolean(),
+  designations: z.array(z.enum(DESIGNATIONS)).max(5),
+  medicalRequired: z.boolean(),
+  active: z.boolean(),
+  notes: str(),
+  /** Set when the record comes from another software of the holding (e.g. Gionti Suite). */
+  externalSource: str(40).optional(),
+  externalId: str(100).optional(),
+});
+
 export const recordSchemas = {
   document: confirmedDocumentSchema,
   inspection: inspectionSchema,
   event: eventSchema,
   task: taskSchema,
   requirement: requirementSchema,
+  employee: employeeSchema,
 };
 export type EditableKind = keyof typeof recordSchemas;
 /** Kinds the owner can archive and restore. Events stay append-only. */
-export const archivableKinds = ['document', 'inspection', 'task'] as const;
+export const archivableKinds = ['document', 'inspection', 'task', 'employee'] as const;
 
 /** Set by the server on archive; never accepted from the client payload. */
 type Archivable = { archivedAt?: string };
@@ -75,3 +99,4 @@ export type InspectionData = z.infer<typeof inspectionSchema> & Archivable;
 export type EventData = z.infer<typeof eventSchema>;
 export type TaskData = z.infer<typeof taskSchema> & Archivable;
 export type RequirementData = z.infer<typeof requirementSchema>;
+export type EmployeeData = z.infer<typeof employeeSchema> & Archivable;

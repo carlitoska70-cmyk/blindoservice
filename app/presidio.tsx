@@ -4,6 +4,7 @@ import {
   BookOpen,
   Building2,
   ClipboardList,
+  Users,
   FolderOpen,
   LockKeyhole,
   Radio,
@@ -14,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Toaster, toast } from 'sonner';
 import ControlRoom, { roomApi, useRoom } from './control-room';
 import { categories, defaultProfile, Entry, Profile } from '@/lib/product';
-import type { DocumentData, InspectionData, TaskData } from '@/lib/schemas';
+import type { DocumentData, EmployeeData, InspectionData, TaskData } from '@/lib/schemas';
 import { api, emptyDoc, emptyInspection, emptyTask, Kind } from './_presidio/shared';
 import { useRecorder } from './_presidio/use-recorder';
 import { useLive } from './_presidio/use-live';
@@ -26,6 +27,7 @@ import OverviewTab from './_presidio/overview-tab';
 import ArchiveTab from './_presidio/archive-tab';
 import ControlTab, { useNoteDraft } from './_presidio/control-tab';
 import ActionsTab from './_presidio/actions-tab';
+import StaffTab from './_presidio/staff-tab';
 import SourcesTab from './_presidio/sources-tab';
 import ProfileTab from './_presidio/profile-tab';
 
@@ -44,7 +46,7 @@ function mergeRecords(prev: Entry[], changed: Entry[]) {
   return [...byId.values()].sort((a, b) => b.created.localeCompare(a.created));
 }
 
-const STAFF_HIDDEN: string[] = ['room', 'control'];
+const STAFF_HIDDEN: string[] = ['room', 'control', 'staff'];
 const navigation = [
   ['overview', 'Situazione', ShieldCheck],
   ['archive', 'Documenti', FolderOpen],
@@ -52,6 +54,7 @@ const navigation = [
   ['room', 'Accessi QR', Radio],
   ['control', 'Controlli', ScanLine],
   ['actions', 'Azioni', ClipboardList],
+  ['staff', 'Dipendenti', Users],
   ['sources', 'Norme e progetto', BookOpen],
   ['profile', 'Azienda', Building2],
 ] as const;
@@ -187,6 +190,10 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
     [active],
   );
   const tasks = useMemo(() => active.filter(x => x.kind === 'task') as Entry<TaskData>[], [active]);
+  const employees = useMemo(
+    () => records.filter(x => x.kind === 'employee' && !x.data?.archivedAt) as Entry<EmployeeData>[],
+    [records],
+  );
 
   async function refresh(initial = false) {
     try {
@@ -546,14 +553,35 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
                   liveReady={!!room.data?.aiReady}
                 />
               </TabsContent>
+              <TabsContent value="staff">
+                <StaffTab
+                  employees={employees}
+                  documents={documents}
+                  busy={busy}
+                  action={action}
+                  onNewDocument={(emp, item) =>
+                    openPrefilled('document', {
+                      ...emptyDoc,
+                      title: (item.label + ' – ' + emp.data.name).slice(0, 200),
+                      category: 'Personale e formazione',
+                      holder: emp.data.name,
+                      employeeId: emp.id,
+                    })
+                  }
+                />
+              </TabsContent>
               <TabsContent value="actions">
                 <ActionsTab tasks={tasks} busy={busy} action={action} onOpen={open} />
               </TabsContent>
               <TabsContent value="sources">
-                <SourcesTab />
+                <SourcesTab
+                  canRefresh={!staff}
+                  onTask={(title, notes) => openPrefilled('task', { ...emptyTask, title, notes })}
+                />
               </TabsContent>
               <TabsContent value="profile">
                 <ProfileTab
+                  onChanged={() => refresh()}
                   staff={staff}
                   draft={draftProfile}
                   onDraft={setDraftProfile}

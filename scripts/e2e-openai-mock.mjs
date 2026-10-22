@@ -20,6 +20,25 @@ http
         return;
       }
       if (req.url === '/v1/responses') {
+        if (body.includes('osservatorio')) {
+          const news = {
+            notizie: [
+              {
+                titolo: 'Nuovo regolamento dehors',
+                fonte: 'Comune di Palermo',
+                url: 'https://www.comune.palermo.it/dehors',
+                sintesi: 'Cambiano le regole per i dehors.',
+                perche: 'Hai un dehors su area pedonale.',
+                azioni: ['Verifica la concessione'],
+                rilevanza: 'alta',
+              },
+            ],
+          };
+          res.end(
+            JSON.stringify({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(news) }] }] }),
+          );
+          return;
+        }
         const report = body.includes('rapporto finale');
         const out = report
           ? {

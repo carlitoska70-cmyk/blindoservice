@@ -2224,3 +2224,118 @@ svg {
   border-top: 1px solid var(--border);
   padding-top: 8px;
 }
+
+/* Staff registry */
+.staffgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+  margin: 12px 0;
+}
+.staffwho {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.staffwho span {
+  display: grid;
+}
+.staffwho small {
+  color: #657188;
+}
+.stafflist {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.stafflist li {
+  display: grid;
+  grid-template-columns: 20px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+.stafflist li span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+}
+.stafflist small {
+  color: #657188;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-label {
+  font-style: normal;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.st-ok {
+  color: #1f7a4d;
+}
+.st-in_scadenza,
+.st-warn {
+  color: #b45309;
+}
+.st-scaduto,
+.st-bad {
+  color: #b91c1c;
+}
+.st-mancante,
+.st-miss {
+  color: #8796aa;
+}
+.designations {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin: 10px 0;
+}
+.linkpick {
+  display: grid;
+  gap: 4px;
+  max-height: 60vh;
+  overflow: auto;
+}
+@media (max-width: 720px) {
+  .staffgrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.keybox {
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+  background: #fff;
+  border: 1px dashed #c7d2e2;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.linkform {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  max-width: 520px;
+}
+
+.newsitem {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+}
+.newsitem.unread h3 a {
+  font-weight: 700;
+}
+.newsitem h3 {
+  margin: 6px 0;
+  font-size: 16px;
+}
+.newsitem h3 a {
+  color: #183d73;
+  text-decoration: none;
+}
+.newswhy {
+  background: #f3f6fb;
+  border-radius: 8px;
+  padding: 8px 10px;
+}

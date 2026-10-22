@@ -99,6 +99,17 @@ const files = [
   'lib/live.ts',
   'lib/text-pdf.ts',
   'app/api/live/route.ts',
+  'lib/integration.ts',
+  'lib/staff.ts',
+  'lib/reminders.ts',
+  'app/api/collegamenti/route.ts',
+  'app/api/holding/v1/stato/route.ts',
+  'app/api/holding/v1/documenti/route.ts',
+  'app/api/holding/v1/file/route.ts',
+  'app/api/holding/v1/dipendenti/route.ts',
+  'app/api/holding/v1/proposte/route.ts',
+  'lib/news.ts',
+  'app/api/novita/route.ts',
 ];
 for (const file of files) {
   let source = readFileSync(file, 'utf8');
@@ -125,7 +136,14 @@ const state = await mod('app/api/state/route'),
   file = await mod('app/api/portal/file/route'),
   privateFile = await mod('app/api/files/route'),
   ai = await mod('app/api/assistant/route'),
-  liveApi = await mod('app/api/live/route');
+  liveApi = await mod('app/api/live/route'),
+  links = await mod('app/api/collegamenti/route'),
+  hStato = await mod('app/api/holding/v1/stato/route'),
+  hDocs = await mod('app/api/holding/v1/documenti/route'),
+  hFile = await mod('app/api/holding/v1/file/route'),
+  hStaff = await mod('app/api/holding/v1/dipendenti/route'),
+  hProp = await mod('app/api/holding/v1/proposte/route'),
+  novita = await mod('app/api/novita/route');
 const origin = 'https://presidio.test';
 let cookie = '';
 const req = (path, body, ck = cookie) =>
@@ -595,6 +613,159 @@ try {
     owner();
   } finally {
     globalThis.fetch = realFetch;
+    delete env.OPENAI_API_KEY;
+  }
+  passed++;
+  // Holding interchange: keys with scopes, proposals confirmed by the owner, nothing else writes.
+  owner();
+  const linkPost = body => links.POST(req('/api/collegamenti', body));
+  const created = await json(
+    await linkPost({
+      action: 'create-key',
+      name: 'Gionti Suite',
+      scopes: ['documenti:leggi', 'dipendenti:leggi', 'proposte:scrivi'],
+    }),
+  );
+  assert.equal(created.status, 200);
+  const keyToken = created.data.token;
+  assert.match(keyToken, /^blk_[A-Za-z0-9_-]{43}$/);
+  assert(!JSON.stringify(database.prepare('SELECT * FROM integration_keys').all()).includes(keyToken));
+  const hreq = (path, init = {}) =>
+    new Request(origin + path, {
+      ...init,
+      headers: { Authorization: 'Bearer ' + keyToken, ...(init.headers || {}) },
+    });
+  assert.equal((await hStato.GET(new Request(origin + '/api/holding/v1/stato'))).status, 401);
+  x = await json(await hStato.GET(hreq('/api/holding/v1/stato')));
+  assert.equal(x.data.software, 'blindo-service');
+  x = await json(await hDocs.GET(hreq('/api/holding/v1/documenti')));
+  assert(x.data.documenti.some(d => d.id === 'd3') && !JSON.stringify(x.data).includes('PRIVATE_INTERNAL'));
+  assert.equal((await hFile.GET(hreq('/api/holding/v1/file?documento=d3'))).status, 403); // no file:leggi
+  // Proposals: an employee and a document with its file, linked by the external id.
+  const propose = (tipo, chiave, dati, file) => {
+    if (!file)
+      return hProp.POST(
+        hreq('/api/holding/v1/proposte', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo, chiaveEsterna: chiave, dati }),
+        }),
+      );
+    const form = new FormData();
+    form.append('tipo', tipo);
+    form.append('chiaveEsterna', chiave);
+    form.append('dati', JSON.stringify(dati));
+    form.append('file', file);
+    return hProp.POST(hreq('/api/holding/v1/proposte', { method: 'POST', body: form }));
+  };
+  assert.equal((await propose('dipendente', 'op-7', { name: 'Mario Prova', role: 'Cameriere' })).status, 201);
+  assert.equal((await propose('dipendente', 'op-7', { name: 'Mario Prova', role: 'Caposala' })).status, 200); // update, no duplicate
+  assert.equal(
+    (
+      await propose(
+        'documento',
+        'att-1',
+        {
+          title: 'Attestato HACCP Mario Prova',
+          category: 'Personale e formazione',
+          expires: '2029-01-01',
+          employeeExternalId: 'op-7',
+        },
+        new File(['%PDF-1.4 x'], 'att.pdf', { type: 'application/pdf' }),
+      )
+    ).status,
+    201,
+  );
+  assert.equal(
+    (await propose('documento', 'bad', { title: 'x' }, new File(['x'], 'a.webm', { type: 'audio/webm' })))
+      .status,
+    400,
+  );
+  assert.equal(database.prepare('SELECT count(*) AS n FROM integration_inbox').get().n, 2);
+  assert.equal(database.prepare("SELECT count(*) AS n FROM records WHERE kind='employee'").get().n, 0); // nothing enters without consent
+  x = await json(await links.GET());
+  const empProp = x.data.inbox.find(i => i.kind === 'dipendente');
+  const docProp = x.data.inbox.find(i => i.kind === 'documento');
+  assert.equal(empProp.data.role, 'Caposala');
+  assert.equal((await linkPost({ action: 'accept', id: empProp.id })).status, 200);
+  assert.equal((await linkPost({ action: 'accept', id: docProp.id })).status, 200);
+  assert.equal((await linkPost({ action: 'accept', id: docProp.id })).status, 404);
+  const emp = database.prepare("SELECT id,data FROM records WHERE kind='employee'").get();
+  const att = JSON.parse(
+    database
+      .prepare(
+        "SELECT data FROM records WHERE kind='document' AND json_extract(data,'$.title')='Attestato HACCP Mario Prova'",
+      )
+      .get().data,
+  );
+  assert.equal(att.employeeId, emp.id);
+  assert.match(att.notes, /Ricevuto da Gionti Suite/);
+  x = await json(await hStaff.GET(hreq('/api/holding/v1/dipendenti')));
+  const mario = x.data.dipendenti.find(d => d.name === 'Mario Prova');
+  assert.equal(mario.externalId, 'op-7');
+  assert(
+    mario.missing.includes('Comunicazione UNILAV') &&
+      !mario.missing.includes('Attestato alimentarista (HACCP)'),
+  );
+  // Collaborator cannot manage keys; revoked key stops working.
+  globalThis.__presidioTest.user = { userId: 'owner-id', email: 'staff@example.test' };
+  assert.equal((await links.GET()).status, 401);
+  owner();
+  const keyId = database.prepare('SELECT id FROM integration_keys').get().id;
+  assert.equal((await linkPost({ action: 'revoke-key', id: keyId })).status, 200);
+  assert.equal((await hDocs.GET(hreq('/api/holding/v1/documenti'))).status, 401);
+  passed++;
+  // News: web search answer filtered to allowed sources, owner-only refresh, token for the weekly job.
+  owner();
+  env.OPENAI_API_KEY = 'sk-test';
+  const fetchBefore = globalThis.fetch;
+  let toolsSeen = null;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/responses')) {
+      toolsSeen = JSON.parse(init.body).tools;
+      const out = {
+        notizie: [
+          {
+            titolo: 'Ordinanza orari movida',
+            fonte: 'Comune di Palermo',
+            url: 'https://www.comune.palermo.it/o/1',
+            sintesi: 'Nuovi orari',
+            rilevanza: 'alta',
+          },
+          { titolo: 'Notizia falsa', fonte: 'Blog', url: 'https://example.com/x', sintesi: 'x' },
+        ],
+      };
+      return Response.json({
+        output: [{ content: [{ type: 'output_text', text: 'Ecco: ' + JSON.stringify(out) }] }],
+      });
+    }
+    return fetchBefore(url, init);
+  };
+  try {
+    const nreq = body => novita.POST(req('/api/novita', body));
+    x = await json(await nreq({ action: 'aggiorna' }));
+    assert.equal(x.status, 200);
+    assert.deepEqual([x.data.nuove, x.data.scartate], [1, 1]);
+    assert.deepEqual(toolsSeen, [{ type: 'web_search' }]);
+    x = await json(await nreq({ action: 'aggiorna' }));
+    assert.equal(x.data.nuove, 0); // same URL is not stored twice
+    const list = await json(await novita.GET());
+    assert.equal(list.data.items.length, 1);
+    assert.equal((await nreq({ action: 'stato', id: list.data.items[0].id, stato: 'letta' })).status, 200);
+    globalThis.__presidioTest.user = { userId: 'owner-id', email: 'staff@example.test' };
+    assert.equal((await nreq({ action: 'aggiorna' })).status, 401);
+    assert.equal((await novita.GET()).status, 200);
+    owner();
+    const job = token =>
+      novita.POST(
+        new Request(origin + '/api/novita', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token },
+        }),
+      );
+    assert.equal((await job('wrong')).status, 401);
+  } finally {
+    globalThis.fetch = fetchBefore;
     delete env.OPENAI_API_KEY;
   }
   passed++;

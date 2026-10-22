@@ -9,7 +9,15 @@ const endpoint = (ai: Ai, path: string) => (ai.base || 'https://api.openai.com')
 
 export async function responsesJson<T = unknown>(
   ai: Ai,
-  opts: { model: string; instructions: string; input: string; maxTokens?: number; timeoutMs?: number },
+  opts: {
+    model: string;
+    instructions: string;
+    input: string;
+    maxTokens?: number;
+    timeoutMs?: number;
+    /** Lets the model search the web (OpenAI web_search tool). */
+    webSearch?: boolean;
+  },
 ): Promise<T> {
   const r = await fetch(endpoint(ai, '/v1/responses'), {
     method: 'POST',
@@ -20,7 +28,10 @@ export async function responsesJson<T = unknown>(
       store: false,
       instructions: opts.instructions,
       input: opts.input,
-      text: { format: { type: 'json_object' } },
+      // JSON mode cannot be combined with tools: with web search the JSON is parsed from the text.
+      ...(opts.webSearch
+        ? { tools: [{ type: 'web_search' }] }
+        : { text: { format: { type: 'json_object' } } }),
       max_output_tokens: opts.maxTokens ?? 2000,
     }),
   });
@@ -32,7 +43,8 @@ export async function responsesJson<T = unknown>(
     .map((x: any) => x.text)
     .join('');
   try {
-    return JSON.parse(text) as T;
+    const json = opts.webSearch ? text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1) : text;
+    return JSON.parse(json) as T;
   } catch {
     throw new AiError('Risposta non strutturata');
   }
