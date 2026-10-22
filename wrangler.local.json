@@ -1,6 +1,6 @@
 {
   "name": "presidio-local-only",
-  "main": "vinext/server/fetch-handler",
+  "main": "./worker/index.ts",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [{

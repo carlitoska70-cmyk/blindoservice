@@ -48,6 +48,11 @@ const child = spawn(
     'PRESIDIO_ADMIN_CREDENTIALS:' + process.env.E2E_OWNER_CREDENTIALS,
     '--var',
     'PRESIDIO_STAFF_CREDENTIALS:' + process.env.E2E_STAFF_CREDENTIALS,
+    // Hourly holding signal: /cdn-cgi/handler/scheduled runs the cron, a fake centrale receives it.
+    '--var',
+    `HOLDING_URL:http://127.0.0.1:${process.env.E2E_HOLDING_PORT}/api/holding/segnale`,
+    '--var',
+    'HOLDING_SEGNALE_KEY:' + process.env.E2E_HOLDING_KEY,
   ],
   { stdio: 'inherit' },
 );

@@ -1,3 +1,25 @@
+COLLEGAMENTO A GIONTI HOLDING — 22 OTTOBRE 2026 (branch segnale-holding, 0.2.0)
+
+RISULTATI EFFETTIVI
+- scripts/test-holding.mjs: 8/8 (finestre di 30 e 90 giorni, archiviati esclusi,
+  nessun dato dei controllori, limite di 16 KB con 300 documenti, solo l'archivio del
+  titolare di questa copia, invio senza chiave = nessuna lettura, risposte 401,
+  rete assente e lentezza senza eccezioni, archivio illeggibile = stato errore).
+- End-to-end Playwright: 9/9, compreso e2e/holding.spec.ts: il Worker di produzione
+  in locale fa scattare il Cron e una finta centrale riceve chiave Bearer, scadenze,
+  controllo aperto e portale; nomi, targa e protocollo del controllore non escono.
+  Gli altri 8 test confermano che il sito funziona con il nuovo ingresso del Worker.
+- Test di accesso 19/19 e test dei moduli invariati; typecheck e lint 0 errori.
+- wrangler deploy --dry-run sulla configurazione di produzione: riuscito, il pacchetto
+  contiene il gestore "scheduled" e il binding della versione.
+
+LIMITI
+- Kassaro OS 8.2.0 è online e la centrale risponde (401 senza chiave), ma l'invio vero
+  non è ancora provato: la chiave non è impostata e senza chiave il Cron non fa nulla.
+- Non ancora pubblicato: serve l'ok di Carlo.
+
+------------------------------------------------------------------------
+
 MIGLIORIE — 11 OTTOBRE 2026 (branch migliorie)
 
 RISULTATI EFFETTIVI

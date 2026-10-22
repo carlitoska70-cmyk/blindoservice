@@ -1,5 +1,48 @@
 PRESIDIO — GUIDA COMPLETA PER TITOLARE E SVILUPPATORE
-Edizione PC 1.0, 17 settembre 2026 — aggiornata l'11 ottobre 2026
+Edizione PC 1.0, 17 settembre 2026 — aggiornata il 22 ottobre 2026
+
+00. AGGIORNAMENTO 22 OTTOBRE 2026 — COLLEGAMENTO A GIONTI HOLDING (versione 0.2.0)
+
+Ogni ora, al minuto 7, il Worker manda un riepilogo alla centrale dei software
+di Kassaro OS (POST https://kassaro-os.onrender.com/api/holding/segnale), così il
+quartier generale «Gionti Holding» e il Direttore vedono:
+- documenti scaduti e in scadenza entro 30 giorni (titolo, data, giorni);
+- controlli aperti e conclusi negli ultimi 90 giorni (ente, oggetto, stato, date);
+- portale QR attivo sì/no e versione di Blindo.
+Non escono allegati, nomi/targhe/uffici/protocolli dei controllori, esiti scritti
+a mano, azioni né il profilo dell'azienda. Massimo 16 KB.
+
+Attivazione (una volta sola, SOLO sulla copia di Carlo):
+    cd "$HOME/Desktop/blindoservice"
+    bash CONFIGURA_HOLDING.command
+Chiede la chiave del software «blindo» (strumento chiave_software del connettore
+Kassaro OS, inizia con kosw_), la prova con la centrale e la salva soltanto come
+segreto HOLDING_SEGNALE_KEY del Worker. Non si vede mentre la incolli e non va in
+nessun file. Una chiave nuova annulla la precedente: in quel caso rilancia il comando.
+Nelle copie date ad altri esercenti NON impostare la chiave: senza chiave Blindo
+non legge e non manda nulla, e i loro dati restano soltanto nel loro archivio.
+
+Se la centrale non risponde o rifiuta la chiave, Blindo continua a funzionare come
+prima: resta una riga nei log del Worker (Cloudflare › Workers › blindoservice ›
+Logs, voce "holding") e si riprova l'ora dopo.
+Scollegare:
+    corepack pnpm exec wrangler secret delete HOLDING_SEGNALE_KEY --config wrangler.jsonc
+
+Per lo sviluppatore: l'ingresso del Worker ora è worker/index.ts (sito vinext più
+gestore "scheduled"); la logica è in lib/holding.ts; l'orario in wrangler.jsonc
+("triggers"). Test: scripts/test-holding.mjs (8) ed e2e/holding.spec.ts, che fa
+scattare l'orologio sul Worker locale (/cdn-cgi/handler/scheduled) verso una finta
+centrale. A ogni pubblicazione aumentare "version" in package.json.
+
+PUBBLICAZIONE DI QUESTA VERSIONE (in ordine)
+1. Verifiche: corepack pnpm run typecheck, lint, test; build e test end-to-end
+   (corepack pnpm run build && corepack pnpm exec playwright test).
+2. corepack pnpm exec wrangler deploy --config wrangler.jsonc
+   (nessuna tabella nuova nel D1; il deploy registra anche l'orario del Cron).
+3. bash CONFIGURA_HOLDING.command con la chiave di Kassaro OS (serve la 8.2.0).
+4. Dopo il minuto 7 dell'ora successiva: in Gionti Holding il pulsante Blindo
+   Service mostra i dati; il Direttore li legge con stato_software.
+
 
 0. AGGIORNAMENTO 11 OTTOBRE 2026 (PREVALE SUI CAPITOLI SEGUENTI)
 

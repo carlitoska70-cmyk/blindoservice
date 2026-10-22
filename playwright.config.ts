@@ -17,6 +17,8 @@ if (!process.env.E2E_OWNER_PASSWORD) {
   }
 }
 const port = process.env.E2E_PORT || '8799';
+process.env.E2E_HOLDING_PORT ||= '8798';
+process.env.E2E_HOLDING_KEY ||= 'kosw_' + randomBytes(32).toString('base64url');
 
 export default defineConfig({
   testDir: 'e2e',

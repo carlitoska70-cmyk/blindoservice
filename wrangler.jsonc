@@ -23,5 +23,12 @@
   ],
   "observability": {
     "enabled": true
+  },
+  // Every hour at minute 7: summary to the Gionti Holding centrale (worker/index.ts, lib/holding.ts).
+  "triggers": {
+    "crons": ["7 * * * *"]
+  },
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA"
   }
 }

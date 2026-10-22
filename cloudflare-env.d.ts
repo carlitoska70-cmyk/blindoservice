@@ -12,5 +12,10 @@ declare namespace Cloudflare {
     RESEND_API_KEY?: string;
     PRESIDIO_REMINDER_EMAIL?: string;
     PRESIDIO_REMINDER_FROM?: string;
+    /** Key from Kassaro OS (chiave_software «blindo»): only in Carlo's own copy. */
+    HOLDING_SEGNALE_KEY?: string;
+    /** Test only: replaces the centrale address (HTTPS, or HTTP on loopback). */
+    HOLDING_URL?: string;
+    CF_VERSION_METADATA?: WorkerVersionMetadata;
   }
 }

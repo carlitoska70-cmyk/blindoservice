@@ -9,7 +9,7 @@ const managedLinux = readExecutionProfile() === "managed-linux";
 
 // Name, flags and the D1/R2 bindings come from wrangler.local.json (local placeholders).
 // wrangler.jsonc is production-only. Repeating bindings here would duplicate them.
-const localBindingConfig = { main: "vinext/server/fetch-handler" };
+const localBindingConfig = { main: "./worker/index.ts" };
 
 export default defineConfig(async () => {
   // Use Miniflare's local Request.cf placeholder unless fetching is requested.
