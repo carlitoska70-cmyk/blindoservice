@@ -1,6 +1,7 @@
 // Holding interchange: other software of the holding (e.g. Gionti Suite) read from
 // Blindo Service and send proposals with a per-software Bearer key. Proposals never
 // change the registry until the owner accepts them.
+import { z } from 'zod';
 import { db, digest, rate } from './portal-server';
 
 export const SCOPES = {
@@ -10,6 +11,30 @@ export const SCOPES = {
   'proposte:scrivi': 'Proporre documenti e dati da confermare',
 } as const;
 export type Scope = keyof typeof SCOPES;
+
+const s = (max: number) => z.string().trim().max(max);
+const date = z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]).default('');
+/** What a program can propose. The same normalisation decides whether a resend is unchanged. */
+export const PROPOSAL_SCHEMAS = {
+  dipendente: z.object({
+    name: s(120).min(1),
+    role: s(120).default(''),
+    hired: date,
+    contract: s(60).default(''),
+    endDate: date,
+    active: z.boolean().default(true),
+  }),
+  documento: z.object({
+    title: s(200).min(1),
+    category: s(80).default('Altro'),
+    documentType: s(200).default(''),
+    issued: date,
+    expires: date,
+    holder: s(200).default(''),
+    employeeExternalId: s(100).optional(),
+    notes: s(2000).default(''),
+  }),
+};
 
 export const newKey = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(32));

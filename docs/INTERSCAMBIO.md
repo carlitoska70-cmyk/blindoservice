@@ -36,7 +36,17 @@ JSON `{ tipo, chiaveEsterna, dati }` oppure multipart con gli stessi campi (`dat
 - `tipo: "dipendente"`, dati: `{ name, role?, hired?, contract?, endDate?, active? }`. `chiaveEsterna` = id del dipendente nel programma, per esempio l'id dell'operatore di Gionti Suite.
 - `tipo: "documento"`, dati: `{ title, category?, documentType?, issued?, expires?, holder?, employeeExternalId?, notes? }`. Con `employeeExternalId` il documento viene abbinato al dipendente già ricevuto dallo stesso programma.
 
-Se rimandi la stessa `chiaveEsterna`, la proposta viene aggiornata e non duplicata. Risposta: `201 { id, stato: "in_attesa" }`, oppure `200 { aggiornata: true }`.
+Se rimandi la stessa `chiaveEsterna` con dati (e file) diversi, la proposta viene aggiornata, non duplicata, e torna in attesa: `200 { aggiornata: true, stato: "in_attesa" }`. Se dati e file sono identici all'ultima volta non cambia niente, e una proposta già accettata resta accettata: `200 { invariata: true, stato }`. Prima volta: `201 { id, stato: "in_attesa" }`.
+
+## Personale dalla centrale (Kassaro OS 8.4.0, Blindo 0.4.1)
+
+Gionti Suite non ha bisogno di una chiave di Blindo per il personale: ogni ora Blindo legge dalla centrale `GET /api/holding/operatori`, con la stessa chiave del segnale (`HOLDING_SEGNALE_KEY`). Arrivano gli operatori attivi con nome, mansione o reparto e data di assunzione, e niente altro.
+
+- Ogni persona diventa una proposta `dipendente` con origine «Gionti Suite» e chiave `dipendente:<id dell'operatore>`.
+- Rimandata uguale, resta com'è, anche se è già accettata. Se cambia, torna in attesa.
+- Quando il titolare accetta, la proposta si collega al dipendente che ha già lo stesso nome e non è ancora collegato («Faraci Dorotea» = «Dorotea Faraci»), invece di crearne un doppione. I campi scritti dal titolare restano quando il gestionale li lascia vuoti.
+- Chi lascia il gestionale non viene tolto da Blindo: la fine del rapporto la segna il titolare.
+- Nel segnale orario `dati.personale` riporta attivi, completi e chi ha documenti mancanti o in scadenza (nomi ed etichette dei documenti, mai i file). Il Direttore lo legge con lo strumento `registro_blindo` di Kassaro OS.
 
 ## Cosa manda Gionti Suite (previsto)
 

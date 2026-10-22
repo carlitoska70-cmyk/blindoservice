@@ -1,32 +1,11 @@
 import { env } from 'cloudflare:workers';
 import { z } from 'zod';
 import { db } from '@/lib/portal-server';
-import { authorize, integrationFailure } from '@/lib/integration';
+import { PROPOSAL_SCHEMAS, authorize, integrationFailure } from '@/lib/integration';
 import { EXHIBITABLE } from '@/lib/grants';
 export const dynamic = 'force-dynamic';
 
-const s = (max: number) => z.string().trim().max(max);
-const date = z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]).default('');
-const SCHEMAS = {
-  dipendente: z.object({
-    name: s(120).min(1),
-    role: s(120).default(''),
-    hired: date,
-    contract: s(60).default(''),
-    endDate: date,
-    active: z.boolean().default(true),
-  }),
-  documento: z.object({
-    title: s(200).min(1),
-    category: s(80).default('Altro'),
-    documentType: s(200).default(''),
-    issued: date,
-    expires: date,
-    holder: s(200).default(''),
-    employeeExternalId: s(100).optional(),
-    notes: s(2000).default(''),
-  }),
-};
+const SCHEMAS = PROPOSAL_SCHEMAS;
 const MAX_FILE = 20 * 1024 * 1024;
 
 /**
@@ -59,15 +38,28 @@ export async function POST(req: Request) {
       return Response.json({ error: 'tipo: dipendente o documento' }, { status: 400 });
     chiave = z.string().trim().min(1).max(100).parse(chiave);
     const data = SCHEMAS[tipo].parse(dati);
-    let fileId: string | null = null;
+    const previous = await db()
+      .prepare(
+        'SELECT i.id,i.file_id,i.status,i.data,f.sha256 FROM integration_inbox i LEFT JOIN files f ON f.id=i.file_id AND f.owner=i.owner WHERE i.owner=? AND i.source=? AND i.external_key=?',
+      )
+      .bind(key.owner, key.name, tipo + ':' + chiave)
+      .first<{ id: string; file_id: string | null; status: string; data: string; sha256: string | null }>();
+    let fileId: string | null = null,
+      bytes: ArrayBuffer | null = null,
+      sha = '';
     if (file) {
       if (tipo !== 'documento' || file.size === 0 || file.size > MAX_FILE || !EXHIBITABLE.includes(file.type))
         return Response.json({ error: 'File: PDF o immagine fino a 20 MB' }, { status: 400 });
       if (!env.BUCKET) return Response.json({ error: 'Archivio non disponibile' }, { status: 503 });
-      const bytes = await file.arrayBuffer();
-      const sha = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), x =>
+      bytes = await file.arrayBuffer();
+      sha = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), x =>
         x.toString(16).padStart(2, '0'),
       ).join('');
+    }
+    // Same data (and same file) as last time: nothing changes, an accepted proposal stays accepted.
+    if (previous && previous.data === JSON.stringify(data) && (!file || sha === previous.sha256))
+      return Response.json({ ok: true, id: previous.id, invariata: true, stato: previous.status });
+    if (file && bytes && env.BUCKET) {
       fileId = crypto.randomUUID();
       const objectKey = key.owner + '/' + fileId;
       await env.BUCKET.put(objectKey, bytes, { httpMetadata: { contentType: file.type } });
@@ -85,12 +77,6 @@ export async function POST(req: Request) {
         .run();
     }
     const now = new Date().toISOString();
-    const previous = await db()
-      .prepare(
-        'SELECT id,file_id,status FROM integration_inbox WHERE owner=? AND source=? AND external_key=?',
-      )
-      .bind(key.owner, key.name, tipo + ':' + chiave)
-      .first<{ id: string; file_id: string | null; status: string }>();
     if (previous) {
       await db()
         .prepare(

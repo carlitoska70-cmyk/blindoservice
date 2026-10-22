@@ -102,6 +102,8 @@ const files = [
   'lib/text-pdf.ts',
   'app/api/live/route.ts',
   'lib/integration.ts',
+  'lib/holding.ts',
+  'lib/holding-staff.ts',
   'lib/staff.ts',
   'lib/reminders.ts',
   'app/api/collegamenti/route.ts',
@@ -111,6 +113,7 @@ const files = [
   'app/api/holding/v1/dipendenti/route.ts',
   'app/api/holding/v1/proposte/route.ts',
   'lib/news.ts',
+  'lib/news-job.ts',
   'app/api/novita/route.ts',
   'lib/retention.ts',
   'lib/portal-notice.ts',
@@ -703,6 +706,26 @@ try {
   );
   assert.equal(att.employeeId, emp.id);
   assert.match(att.notes, /Ricevuto da Gionti Suite/);
+  // Same data again (the daily resend): nothing changes, the accepted proposal stays accepted.
+  x = await json(await propose('dipendente', 'op-7', { name: 'Mario Prova', role: 'Caposala' }));
+  assert.deepEqual([x.status, x.data.invariata, x.data.stato], [200, true, 'accettata']);
+  x = await json(
+    await propose(
+      'documento',
+      'att-1',
+      {
+        title: 'Attestato HACCP Mario Prova',
+        category: 'Personale e formazione',
+        expires: '2029-01-01',
+        employeeExternalId: 'op-7',
+      },
+      new File(['%PDF-1.4 x'], 'att.pdf', { type: 'application/pdf' }),
+    ),
+  );
+  assert.equal(x.data.invariata, true);
+  // Changed data: back to the owner for a new decision.
+  x = await json(await propose('dipendente', 'op-7', { name: 'Mario Prova', role: 'Responsabile sala' }));
+  assert.deepEqual([x.data.aggiornata, x.data.stato], [true, 'in_attesa']);
   x = await json(await hStaff.GET(hreq('/api/holding/v1/dipendenti')));
   const mario = x.data.dipendenti.find(d => d.name === 'Mario Prova');
   assert.equal(mario.externalId, 'op-7');
@@ -710,6 +733,92 @@ try {
     mario.missing.includes('Comunicazione UNILAV') &&
       !mario.missing.includes('Attestato alimentarista (HACCP)'),
   );
+  // Staff from the centrale (Kassaro OS 8.4.0): proposals «Gionti Suite» with the holding key, an unchanged
+  // person is not proposed again, accepting links to the employee the owner entered by hand.
+  {
+    const { syncStaff } = await mod('lib/holding-staff');
+    database.prepare("INSERT OR REPLACE INTO admin_identity(slot,owner) VALUES(1,'owner-id')").run();
+    x = await json(
+      await state.POST(
+        req('/api/state', {
+          action: 'create',
+          kind: 'employee',
+          data: {
+            name: 'Faraci Dorotea',
+            role: '',
+            hired: '',
+            contract: 'Tempo indeterminato',
+            endDate: '',
+            extraUe: false,
+            designations: ['RLS'],
+            medicalRequired: false,
+            active: true,
+            notes: 'Scritto dal titolare',
+          },
+        }),
+      ),
+    );
+    const manualId = x.data.id;
+    let staffList = [
+      { id: 12, nome: 'Dorotea Faraci', mansione: 'Banconista', reparto: 'Bar', assunto: '2025-03-01' },
+      { id: '13', nome: 'Akash Sarkar', mansione: '', reparto: 'Cucina', assunto: 'non valida' },
+      { id: '14', nome: '' },
+    ];
+    let seenAuth = '';
+    const centrale = async (url, init) => {
+      assert.equal(String(url), 'https://centrale.test/api/holding/operatori');
+      seenAuth = init.headers.Authorization;
+      return Response.json({ fonte: 'Kassaro OS', operatori: staffList });
+    };
+    const staffEnv = {
+      DB: env.DB,
+      HOLDING_SEGNALE_KEY: 'kosw_test',
+      HOLDING_URL: 'https://centrale.test/api/holding/segnale',
+    };
+    assert.equal((await syncStaff({ DB: env.DB }, new Date(), centrale)).ok, false); // no key: nothing read
+    x = await syncStaff(staffEnv, new Date(), centrale);
+    assert.deepEqual([x.ok, x.persone, x.nuove], [true, 2, 2]);
+    assert.equal(seenAuth, 'Bearer kosw_test');
+    assert.equal((await syncStaff(staffEnv, new Date(), centrale)).invariate, 2);
+    const inbox = (await json(await links.GET())).data.inbox.filter(i => i.source === 'Gionti Suite');
+    const dorotea = inbox.find(i => i.external_key === 'dipendente:12');
+    assert.deepEqual(dorotea.data, {
+      name: 'Dorotea Faraci',
+      role: 'Banconista',
+      hired: '2025-03-01',
+      contract: '',
+      endDate: '',
+      active: true,
+    });
+    assert.equal(inbox.find(i => i.external_key === 'dipendente:13').data.role, 'Cucina');
+    assert.equal(inbox.find(i => i.external_key === 'dipendente:13').data.hired, '');
+    assert.equal((await linkPost({ action: 'accept', id: dorotea.id })).status, 200);
+    const linked = JSON.parse(database.prepare('SELECT data FROM records WHERE id=?').get(manualId).data);
+    assert.deepEqual(
+      [linked.name, linked.role, linked.contract, linked.designations, linked.externalId, linked.notes],
+      ['Faraci Dorotea', 'Banconista', 'Tempo indeterminato', ['RLS'], '12', 'Scritto dal titolare'],
+    );
+    assert.equal(
+      database
+        .prepare(
+          "SELECT count(*) AS n FROM records WHERE kind='employee' AND json_extract(data,'$.name') LIKE '%Dorotea%'",
+        )
+        .get().n,
+      1,
+    );
+    // Accepted and unchanged: it stays accepted. Changed in the management software: back to the owner.
+    assert.equal((await syncStaff(staffEnv, new Date(), centrale)).invariate, 2);
+    staffList = [{ ...staffList[0], mansione: 'Caposala' }, staffList[1]];
+    x = await syncStaff(staffEnv, new Date(), centrale);
+    assert.deepEqual([x.aggiornate, x.invariate], [1, 1]);
+    assert.equal(
+      database.prepare("SELECT status FROM integration_inbox WHERE external_key='dipendente:12'").get()
+        .status,
+      'in_attesa',
+    );
+    x = await syncStaff(staffEnv, new Date(), async () => new Response('no', { status: 403 }));
+    assert.deepEqual([x.ok, x.status], [false, 403]);
+  }
   // Collaborator cannot manage keys; revoked key stops working.
   globalThis.__presidioTest.user = { userId: 'owner-id', email: 'staff@example.test' };
   assert.equal((await links.GET()).status, 401);
@@ -759,14 +868,38 @@ try {
     assert.equal((await nreq({ action: 'aggiorna' })).status, 401);
     assert.equal((await novita.GET()).status, 200);
     owner();
-    const job = token =>
-      novita.POST(
-        new Request(origin + '/api/novita', {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + token },
-        }),
-      );
-    assert.equal((await job('wrong')).status, 401);
+    // The old GitHub job (Bearer token, no session) is gone: the weekly search runs from the Cron.
+    const job = await novita.POST(
+      new Request(origin + '/api/novita', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer x'.repeat(8) },
+      }),
+    );
+    assert.equal(job.status, 403);
+    // Cron: the manual search above counts as this week's run; next Monday from 08:00 (Rome) it runs.
+    const { runNews } = await mod('lib/news-job');
+    await env.DB.prepare("INSERT OR REPLACE INTO admin_identity(slot,owner) VALUES(1,'owner-id')").run();
+    const runAt = iso => runNews(env, new Date(iso));
+    const thisWeek = new Date();
+    assert.equal((await runAt(thisWeek.toISOString())).saltata, 'non è il momento');
+    const monday = new Date(thisWeek);
+    monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
+    const day = monday.toISOString().slice(0, 10);
+    assert.equal((await runAt(day + 'T05:30:00Z')).saltata, 'non è il momento'); // 06:30 or 07:30 in Rome
+    x = await runAt(day + 'T07:10:00Z');
+    assert.equal(x.ok, true);
+    assert.equal(x.nuove, 0); // known URL, not stored twice
+    assert.equal((await runAt(day + 'T08:10:00Z')).saltata, 'non è il momento');
+    // A failed search is retried after 6 hours, not every hour.
+    const next = new Date(Date.parse(day) + 7 * 86_400_000).toISOString().slice(0, 10);
+    const okFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response('down', { status: 500 });
+    assert.equal((await runAt(next + 'T07:10:00Z')).ok, false);
+    globalThis.fetch = okFetch;
+    assert.equal((await runAt(next + 'T09:10:00Z')).saltata, 'non è il momento');
+    assert.equal((await runAt(next + 'T13:20:00Z')).ok, true);
+    delete env.OPENAI_API_KEY;
+    assert.equal((await runAt(next + 'T13:20:00Z')).saltata, 'IA non collegata');
   } finally {
     globalThis.fetch = fetchBefore;
     delete env.OPENAI_API_KEY;

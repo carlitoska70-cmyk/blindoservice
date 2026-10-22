@@ -6,14 +6,41 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const dir = mkdtempSync(join(process.cwd(), '.test-live-'));
-writeFileSync(
-  join(dir, 'news.mjs'),
-  ts.transpileModule(readFileSync('lib/news.ts', 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-  }).outputText,
-);
+for (const name of ['news', 'news-job', 'openai', 'notify'])
+  writeFileSync(
+    join(dir, name + '.mjs'),
+    ts
+      .transpileModule(readFileSync(`lib/${name}.ts`, 'utf8'), {
+        compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+      })
+      .outputText.replace(/(['"])(\.\/[a-z-]+)\1/g, "'$2.mjs'"),
+  );
 const { allowedUrl, parseNews } = await import(pathToFileURL(join(dir, 'news.mjs')).href);
+const { newsWeek, newsDue } = await import(pathToFileURL(join(dir, 'news-job.mjs')).href);
 rmSync(dir, { recursive: true, force: true });
+
+test('news week starts on Monday at 08:00 in Rome, summer and winter time', () => {
+  // Summer (UTC+2): Monday 20/10/2025 08:00 Rome = 06:00 UTC.
+  assert.equal(newsWeek(new Date('2025-10-20T05:59:00Z')), '2025-10-13');
+  assert.equal(newsWeek(new Date('2025-10-20T06:00:00Z')), '2025-10-20');
+  assert.equal(newsWeek(new Date('2025-10-26T21:00:00Z')), '2025-10-20'); // Sunday night
+  // Winter (UTC+1): Monday 27/10/2025 08:00 Rome = 07:00 UTC.
+  assert.equal(newsWeek(new Date('2025-10-27T06:59:00Z')), '2025-10-20');
+  assert.equal(newsWeek(new Date('2025-10-27T07:00:00Z')), '2025-10-27');
+  // Sunday 23:30 UTC is already Monday 00:30 in Rome, still before 08:00.
+  assert.equal(newsWeek(new Date('2025-12-28T23:30:00Z')), '2025-12-22');
+});
+
+test('newsDue: once per week, failed attempts retried after 6 hours', () => {
+  const at = iso => new Date(iso);
+  assert.equal(newsDue(at('2025-10-23T10:00:00Z'), null), true); // first run ever
+  const ran = { lastRun: '2025-10-20T06:07:00Z', lastAttempt: '2025-10-20T06:07:00Z' };
+  assert.equal(newsDue(at('2025-10-26T22:00:00Z'), ran), false);
+  assert.equal(newsDue(at('2025-10-27T07:07:00Z'), ran), true);
+  const failed = { ...ran, lastAttempt: '2025-10-27T07:07:00Z' };
+  assert.equal(newsDue(at('2025-10-27T12:07:00Z'), failed), false);
+  assert.equal(newsDue(at('2025-10-27T13:07:00Z'), failed), true);
+});
 
 test('only association and official domains are allowed', () => {
   assert(allowedUrl('https://www.fipe.it/comunicazione/news/x.html'));

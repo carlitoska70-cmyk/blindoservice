@@ -19,7 +19,14 @@ const MAX_ITEMS = 25;
 const MAX_TITLE = 120;
 const TIMEOUT_MS = 30_000;
 
-export type HoldingRecord = { kind: string; data: any; created?: string };
+export type HoldingRecord = { id?: string; kind: string; data: any; created?: string };
+/** One active employee as lib/staff.ts staffSummary() returns it. */
+export type StaffLine = { name: string; role?: string; missing: string[]; expiring: string[] };
+export type StaffSummarize = (
+  employees: { id: string; data: any }[],
+  docs: { id: string; data: any }[],
+  today: string,
+) => StaffLine[];
 export type CatalogueTitle = { id: string; title: string };
 export type EvidenceItem = {
   categoria: string;
@@ -45,6 +52,8 @@ export type HoldingMeta = {
   /** Cloudflare version metadata of the running deployment, when bound. */
   release?: { id?: string; timestamp?: string };
   now: Date;
+  /** lib/staff.ts staffSummary, passed in by the Worker so this module stays free of imports. */
+  staffSummary?: StaffSummarize;
 };
 export type HoldingSignal = {
   stato: 'ok' | 'attenzione' | 'errore';
@@ -227,6 +236,17 @@ export function holdingSummary(
         toAssess.push({ titolo: clip(c.title), evidenza: v.stato });
   }
 
+  // Employees with documents missing or expiring (names and document labels only, never the files).
+  const staff =
+    input.owner && input.staffSummary
+      ? input.staffSummary(
+          live.filter(r => r.kind === 'employee' && r.id).map(r => ({ id: r.id!, data: r.data })),
+          documents.filter(r => r.id).map(r => ({ id: r.id!, data: r.data })),
+          today,
+        )
+      : null;
+  const staffGaps = (staff || []).filter(e => e.missing.length || e.expiring.length);
+
   const stato: HoldingSignal['stato'] = !input.owner || expired.length || open.length ? 'attenzione' : 'ok';
   const testo = clip(
     input.owner
@@ -259,10 +279,23 @@ export function holdingSummary(
     documenti_senza_catalogo: titles(unlinked),
     documenti_senza_scadenza: titles(undated),
     requisiti_coperti_da_valutare: toAssess.slice(0, MAX_ITEMS),
+    personale_con_mancanze: staffGaps.slice(0, MAX_ITEMS).map(e => ({
+      nome: clip(e.name),
+      ...(e.role ? { mansione: clip(e.role) } : {}),
+      mancano: e.missing.slice(0, 12).map(x => clip(x)),
+      in_scadenza: e.expiring.slice(0, 12).map(x => clip(x)),
+    })),
   };
-  const cut = [expired, expiring, [...open, ...recent], unchecked, unlinked, undated, toAssess].some(
-    l => l.length > MAX_ITEMS,
-  );
+  const cut = [
+    expired,
+    expiring,
+    [...open, ...recent],
+    unchecked,
+    unlinked,
+    undated,
+    toAssess,
+    staffGaps,
+  ].some(l => l.length > MAX_ITEMS);
   const assemble = (l: Record<string, unknown[]>) => ({
     software: 'blindo',
     versione: input.version,
@@ -287,6 +320,16 @@ export function holdingSummary(
     documenti_scaduti: l.documenti_scaduti,
     documenti_in_scadenza: l.documenti_in_scadenza,
     controlli_elenco: l.controlli_elenco,
+    ...(staff
+      ? {
+          personale: {
+            attivi: staff.length,
+            completi: staff.length - staffGaps.length,
+            con_mancanze: l.personale_con_mancanze,
+            nota: 'Elenco generico per un bar-ristorante: cosa serve davvero dipende da contratto, DVR e mansione.',
+          },
+        }
+      : {}),
     ...(input.owner
       ? {
           da_completare: {
@@ -354,10 +397,10 @@ export async function collectHolding(
   const [r, p, profile] = await Promise.all([
     db
       .prepare(
-        "SELECT kind,data,created FROM records WHERE owner=? AND kind IN ('document','inspection','requirement','evidence')",
+        "SELECT id,kind,data,created FROM records WHERE owner=? AND kind IN ('document','inspection','requirement','evidence','employee')",
       )
       .bind(owner)
-      .all<{ kind: string; data: string; created: string }>(),
+      .all<{ id: string; kind: string; data: string; created: string }>(),
     db.prepare('SELECT enabled FROM portals WHERE owner=?').bind(owner).first<{ enabled: number }>(),
     db.prepare('SELECT data FROM profiles WHERE owner=?').bind(owner).first<{ data: string }>(),
   ]);
@@ -368,7 +411,7 @@ export async function collectHolding(
       return null;
     }
   };
-  const records = r.results.map(x => ({ kind: x.kind, data: parse(x.data), created: x.created }));
+  const records = r.results.map(x => ({ id: x.id, kind: x.kind, data: parse(x.data), created: x.created }));
   return holdingSummary({
     ...meta,
     owner: true,

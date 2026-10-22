@@ -69,6 +69,31 @@ async function findEmployee(uid: string, source: string, externalId: string) {
   return row ? { id: row.id, data: JSON.parse(row.data) } : null;
 }
 
+/** «Faraci Dorotea» = «Dorotea Faraci»: same words, any order, accents and case ignored. */
+const personKey = (v: unknown) =>
+  String(v || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .sort()
+    .join(' ');
+
+/** An employee the owner entered by hand, not yet linked to any program, with the same name. */
+async function findByName(uid: string, name: string) {
+  const key = personKey(name);
+  if (!key) return null;
+  const rows = await db()
+    .prepare(
+      "SELECT id,data FROM records WHERE owner=? AND kind='employee' AND COALESCE(json_extract(data,'$.externalId'),'')=''",
+    )
+    .bind(uid)
+    .all<{ id: string; data: string }>();
+  const hits = rows.results.filter(r => personKey(JSON.parse(r.data).name) === key);
+  return hits.length === 1 ? { id: hits[0].id, data: JSON.parse(hits[0].data) } : null;
+}
+
 export async function POST(req: Request) {
   try {
     origin(req);
@@ -131,13 +156,16 @@ export async function POST(req: Request) {
     if (b.action !== 'accept') return response({ error: 'Operazione non valida' }, 400);
     let recordId: string;
     if (item.kind === 'dipendente') {
-      const existing = await findEmployee(uid, item.source, externalId);
+      // Already received from this program, or entered by hand with the same name: one employee, not two.
+      // What the owner wrote stays when the program leaves a field empty.
+      const existing =
+        (await findEmployee(uid, item.source, externalId)) || (await findByName(uid, data.name));
       const merged = employeeSchema.parse({
-        name: data.name,
-        role: data.role,
-        hired: data.hired,
-        contract: data.contract,
-        endDate: data.endDate,
+        name: existing?.data.name || data.name,
+        role: data.role || existing?.data.role || '',
+        hired: data.hired || existing?.data.hired || '',
+        contract: data.contract || existing?.data.contract || '',
+        endDate: data.endDate || existing?.data.endDate || '',
         active: data.active,
         extraUe: existing?.data.extraUe ?? false,
         designations: existing?.data.designations ?? [],

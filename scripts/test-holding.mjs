@@ -191,6 +191,43 @@ test('dal database: solo l’archivio del titolare di questa copia', async () =>
   assert.ok(!JSON.stringify(s).includes('altro esercente'));
 });
 
+test('personale: chi ha documenti mancanti o in scadenza, solo nomi ed etichette', async () => {
+  // Without the staff rules (other copies, old Workers) nothing about staff is sent.
+  assert.equal(summary([doc('SCIA', '2027-01-01')]).dati.personale, undefined);
+  const seen = [];
+  const staffSummary = (employees, docs, today) => {
+    seen.push({ employees: employees.map(e => e.id), docs: docs.map(d => d.id), today });
+    return employees.map(e => ({
+      name: e.data.name,
+      role: e.data.role,
+      missing: e.data.name === 'Mario Prova' ? ['Comunicazione UNILAV'] : [],
+      expiring: e.data.name === 'Mario Prova' ? ['Attestato alimentarista (HACCP)'] : [],
+    }));
+  };
+  const { sqlite, add, db } = fixture();
+  sqlite.exec("INSERT INTO admin_identity VALUES(1,'carlo')");
+  add('e1', 'carlo', {
+    kind: 'employee',
+    data: { name: 'Mario Prova', role: 'Cameriere', active: true, notes: 'NOTA_PRIVATA' },
+  });
+  add('e2', 'carlo', { kind: 'employee', data: { name: 'Anna Completa', role: '', active: true } });
+  add('e3', 'altro', { kind: 'employee', data: { name: 'Di un altro esercente', active: true } });
+  add('d1', 'carlo', doc('Attestato HACCP Mario Prova', '2026-11-01', { employeeId: 'e1' }));
+  const s = await collectHolding(db, { ...meta, staffSummary });
+  assert.deepEqual(seen, [{ employees: ['e1', 'e2'], docs: ['d1'], today: '2026-10-22' }]);
+  assert.deepEqual(s.dati.personale.con_mancanze, [
+    {
+      nome: 'Mario Prova',
+      mansione: 'Cameriere',
+      mancano: ['Comunicazione UNILAV'],
+      in_scadenza: ['Attestato alimentarista (HACCP)'],
+    },
+  ]);
+  assert.deepEqual([s.dati.personale.attivi, s.dati.personale.completi], [2, 1]);
+  const json = JSON.stringify(s);
+  assert.ok(!json.includes('NOTA_PRIVATA') && !json.includes('altro esercente'));
+});
+
 test('invio: chiave, formato e nessun errore che fermi Blindo', async () => {
   const { sqlite, add, db } = fixture();
   sqlite.exec("INSERT INTO admin_identity VALUES(1,'carlo')");

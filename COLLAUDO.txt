@@ -1,3 +1,32 @@
+PERSONALE DA GIONTI SUITE E NOVITÀ DAL CRON — 22 OTTOBRE 2026 (branch registro-personale, 0.4.1)
+Sopra la 0.4.0 (evidenze-gestionale 92a3b01) e il ramo novita-cron.
+
+COSA CAMBIA
+- Ogni ora Blindo legge dalla centrale (Kassaro OS 8.4.0) GET /api/holding/operatori con la chiave
+  del segnale e propone al titolare ogni persona («Gionti Suite»). Uguale = invariata, anche se già
+  accettata; cambiata = di nuovo in attesa. Accettando si collega al dipendente con lo stesso nome
+  inserito a mano, senza doppioni e senza perdere i campi del titolare.
+- Le proposte via /api/holding/v1/proposte identiche all'ultima volta non tornano in attesa.
+- Il segnale orario ha dati.personale: attivi, completi, chi ha documenti mancanti o in scadenza.
+- La ricerca delle novità parte dal Cron una volta a settimana (lunedì dalle 8:00 ora di Roma);
+  tolto il workflow GitHub.
+
+RISULTATI EFFETTIVI
+- tests/access-control.mjs: 30/30, compresi: personale dalla centrale (chiave, proposte nuove,
+  invariate, aggiornate, nome inserito a mano collegato senza doppioni né campi persi, 403 della
+  centrale), proposte identiche via chiave che restano accettate, novità dal Cron (settimana,
+  riprova dopo 6 ore, IA non collegata).
+- scripts/test-holding.mjs 13/13 (nuovo: personale solo nomi ed etichette, niente note, niente altri
+  esercenti); scripts/test-news.mjs 4/4 (settimana dal lunedì alle 8 anche col cambio d'ora).
+- End-to-end Playwright 10/10: holding.spec ora fa leggere il personale alla finta centrale e
+  controlla la proposta «Gionti Suite» in attesa.
+- typecheck, lint (0 errori) e formato a posto.
+
+LIMITI DELLA VERIFICA
+- Lato Kassaro OS provato con il suo test (8.4.0, 109/109), non ancora con la centrale vera.
+
+------------------------------------------------------------------------
+
 IL GESTIONALE PARLA CON BLINDO — 22 OTTOBRE 2026 (branch evidenze-gestionale, 0.4.0,
 sopra la 0.3.1 online: main f658275 = 0.3.0 + conservazione)
 

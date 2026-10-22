@@ -47,10 +47,22 @@ test('holding: segnale ed evidenze con la centrale; link HACCP solo al controllo
   };
   const received: { auth?: string; body: any }[] = [];
   const evidenceReads: (string | undefined)[] = [];
+  const staffReads: (string | undefined)[] = [];
   const centrale = createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/api/holding/evidenze') {
       evidenceReads.push(req.headers.authorization);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(evidence));
+      return;
+    }
+    // Staff of the management software (Kassaro OS 8.4.0), proposed to the owner.
+    if (req.method === 'GET' && req.url === '/api/holding/operatori') {
+      staffReads.push(req.headers.authorization);
+      const operatori = [
+        { id: '41', nome: 'Rosa Prova E2E', mansione: 'Banconista', reparto: 'Bar', assunto: rome(-30) },
+      ];
+      res
+        .writeHead(200, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ fonte: 'Kassaro OS', operatori }));
       return;
     }
     let raw = '';
@@ -125,6 +137,19 @@ test('holding: segnale ed evidenze con la centrale; link HACCP solo al controllo
     );
     expect(gaps.profilo.mancanti).toContain('Informativa del portale');
     expect(raw).not.toContain('e2e-token');
+
+    // Staff: read with the same key and waiting for the owner in «Proposte dagli altri programmi».
+    await expect.poll(() => staffReads.length, { timeout: 20_000 }).toBe(1);
+    expect(staffReads).toEqual([`Bearer ${process.env.E2E_HOLDING_KEY}`]);
+    await expect
+      .poll(
+        async () =>
+          ((await (await page.request.get('/api/collegamenti')).json()).inbox || []).map(
+            (i: any) => `${i.source} ${i.kind} ${i.data.name} ${i.status}`,
+          ),
+        { timeout: 20_000 },
+      )
+      .toContain('Gionti Suite dipendente Rosa Prova E2E in_attesa');
 
     // The site keeps working after the cron ran, and the catalogue shows the evidence.
     const state = await (await page.request.get('/api/state')).json();
