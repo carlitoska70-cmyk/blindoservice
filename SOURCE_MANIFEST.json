@@ -2,7 +2,7 @@
   "product": "Presidio",
   "pcRelease": "1.0",
   "sourceCommit": "82fe05a05f70fc498d9a291a2f691c471a5e9f76",
-  "generatedAt": "2026-10-22T18:05:45.687Z",
+  "generatedAt": "2026-10-22T18:06:48.600Z",
   "files": {
     ".github/workflows/ci.yml": "7c70aa9247fb38b387fc21593fb5d0a210004b88bd4f60aeb8ebb746ebf2376a",
     ".github/workflows/reminders.yml": "392f34cc99c5e346e2ec5b33c8be265cf378e84f58e91b66017a647571b575af",
@@ -47,7 +47,7 @@
     "app/api/holding/v1/dipendenti/route.ts": "bc7591d09fd7a9dbed9b8d2ef7f7ecdc053f60f176e15ec3f301523fd06af14d",
     "app/api/holding/v1/documenti/route.ts": "a034b7b63f9661622d8fe53ddd6480f4519827dfc47c63d23bbcadb29dca6e17",
     "app/api/holding/v1/file/route.ts": "5aab6e924f0302f8c3a4927dd04dc1d71951e8d40c118d0758c7f454c581ded6",
-    "app/api/holding/v1/proposte/route.ts": "c86a3715800525091efc826d221387f5d43a2569bdf3da599cac5ac9463fff15",
+    "app/api/holding/v1/proposte/route.ts": "408c67a59f600522a3faef4196e4ab23d5e45cd72ea4aa3abe727e93436426fa",
     "app/api/holding/v1/stato/route.ts": "9f673309a39548bfb9a38288cef29e97a3f39539882c493ad975ab31d5d3dd4c",
     "app/api/live/route.ts": "806de1145087d7238f2ff6c48159afceab33f932823e67b3c611dbc8c64b7769",
     "app/api/novita/route.ts": "740ee64130f45b12df855c34c8561e425ad50c7e34b48f63a94554675e3291f1",

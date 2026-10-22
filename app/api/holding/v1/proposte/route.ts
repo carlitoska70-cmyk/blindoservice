@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     // Same data (and same file) as last time: nothing changes, an accepted proposal stays accepted.
     if (previous && previous.data === JSON.stringify(data) && (!file || sha === previous.sha256))
       return Response.json({ ok: true, id: previous.id, invariata: true, stato: previous.status });
-    if (file && bytes) {
+    if (file && bytes && env.BUCKET) {
       fileId = crypto.randomUUID();
       const objectKey = key.owner + '/' + fileId;
       await env.BUCKET.put(objectKey, bytes, { httpMetadata: { contentType: file.type } });
