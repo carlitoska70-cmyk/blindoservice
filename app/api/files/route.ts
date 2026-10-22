@@ -11,13 +11,19 @@ export async function POST(req: Request) {
   if (!env.DB || !env.BUCKET)
     return Response.json({ error: 'Archivio allegati non disponibile' }, { status: 503 });
   try {
-    const max = 20 * 1024 * 1024;
-    if (Number(req.headers.get('content-length') || 0) > max + 65536)
-      return Response.json({ error: 'Massimo 20 MB per allegato' }, { status: 413 });
+    // Documents up to 20 MB; full inspection recordings (owner only) up to 90 MB.
+    const max = 20 * 1024 * 1024,
+      maxAudio = 90 * 1024 * 1024;
+    if (Number(req.headers.get('content-length') || 0) > maxAudio + 65536)
+      return Response.json({ error: 'Massimo 90 MB per registrazione' }, { status: 413 });
     const form = await req.formData();
     const file = form.get('file');
-    if (!(file instanceof File) || file.size === 0 || file.size > max)
-      return Response.json({ error: 'Scegli un file da 1 byte a 20 MB' }, { status: 400 });
+    const limit = file instanceof File && isAudio(file.type) && user.role === 'owner' ? maxAudio : max;
+    if (!(file instanceof File) || file.size === 0 || file.size > limit)
+      return Response.json(
+        { error: limit === max ? 'Scegli un file da 1 byte a 20 MB' : 'Registrazione oltre 90 MB' },
+        { status: 400 },
+      );
     if (
       !/^(application\/pdf|image\/(jpeg|png|webp)|audio\/(webm|mp4|mpeg|wav|x-wav|ogg))(;.*)?$/.test(
         file.type,

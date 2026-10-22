@@ -7,3 +7,9 @@ CREATE INDEX IF NOT EXISTS admin_login_limits_expiry ON admin_login_limits(expir
 CREATE TABLE IF NOT EXISTS admin_passkeys (id TEXT PRIMARY KEY NOT NULL, owner TEXT NOT NULL, public_key TEXT NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, label TEXT NOT NULL, created TEXT NOT NULL, last_used TEXT);
 CREATE TABLE IF NOT EXISTS admin_challenges (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, expires INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS admin_challenges_expiry ON admin_challenges(expires);
+-- Inspection portal settings (automatic exhibition when the owner is absent).
+CREATE TABLE IF NOT EXISTS portal_settings (owner TEXT PRIMARY KEY NOT NULL, auto_share INTEGER NOT NULL DEFAULT 0, updated TEXT NOT NULL);
+-- Holding interchange: per-software keys and the inbox of proposals awaiting the owner's decision.
+CREATE TABLE IF NOT EXISTS integration_keys (id TEXT PRIMARY KEY NOT NULL, owner TEXT NOT NULL, name TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE, scopes TEXT NOT NULL, created TEXT NOT NULL, last_used TEXT, revoked TEXT);
+CREATE TABLE IF NOT EXISTS integration_inbox (id TEXT PRIMARY KEY NOT NULL, owner TEXT NOT NULL, key_id TEXT NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL, external_key TEXT NOT NULL, data TEXT NOT NULL, file_id TEXT, status TEXT NOT NULL DEFAULT 'in_attesa', created TEXT NOT NULL, decided TEXT, record_id TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS integration_inbox_key ON integration_inbox(owner, source, external_key);

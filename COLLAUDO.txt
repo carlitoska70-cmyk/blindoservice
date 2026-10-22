@@ -1,3 +1,22 @@
+REGISTRO GENERALE E CONTROLLO LIVE — 22 OTTOBRE 2026 (branch rilascio-registro, 0.3.0)
+Unione di main 0.2.0 (segnale a Gionti Holding) con controllo-live e interscambio.
+
+RISULTATI EFFETTIVI
+- tests/access-control.mjs: 23/23 (esibizione automatica, controllo live con IA
+  simulata, interscambio: chiavi, permessi, proposte, accetta, revoca, collaboratore
+  senza accesso; novità: domini ammessi, doppioni, aggiornamento solo del titolare).
+- Test dei moduli: holding 8, admin-auth 14, live 3, text-pdf 3, novità 2, passkey 3,
+  promemoria 3 e gli altri; typecheck e lint 0 errori.
+- End-to-end Playwright: 10/10, compresi holding.spec.ts (Cron e finta centrale) e
+  live.spec.ts (QR, esibizione, monitor, suggerimenti, rapporto PDF con microfono finto).
+- Il finto OpenAI dei test ora usa la porta 8797: la 8798 è della finta centrale.
+
+LIMITI DELLA VERIFICA
+- Trascrizione e suggerimenti provati con un OpenAI simulato, non con quello vero.
+- Nessuna prova su Safari/iPhone reale.
+
+------------------------------------------------------------------------
+
 COLLEGAMENTO A GIONTI HOLDING — 22 OTTOBRE 2026 (branch segnale-holding, 0.2.0)
 
 RISULTATI EFFETTIVI

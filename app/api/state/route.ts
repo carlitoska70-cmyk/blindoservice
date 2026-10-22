@@ -106,7 +106,7 @@ export async function POST(req: Request) {
         return json({ error: 'Il record è cambiato. Ricarica i dati prima di riprovare.' }, 409);
       return json({ ok: true, id });
     }
-    const kind = z.enum(['document', 'inspection', 'event', 'task', 'requirement']).parse(b.kind);
+    const kind = z.enum(['document', 'inspection', 'event', 'task', 'requirement', 'employee']).parse(b.kind);
     const data = recordSchemas[kind].parse(b.data);
     if (kind === 'event') {
       const parent = await db

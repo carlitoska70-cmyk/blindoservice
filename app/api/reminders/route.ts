@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { getMember } from '@/lib/operator';
 import { defaultProfile } from '@/lib/product';
+import { channels, send } from '@/lib/notify';
 import { dueItems, notifiable, reminderText, romeToday, type ReminderRecord } from '@/lib/reminders';
 export const dynamic = 'force-dynamic';
 
@@ -31,34 +32,6 @@ async function sameSecret(a: string, b: string) {
   return diff === 0;
 }
 
-async function send(e: Env, subject: string, text: string) {
-  const channels: string[] = [];
-  if (e.TELEGRAM_BOT_TOKEN && e.TELEGRAM_CHAT_ID) {
-    const r = await fetch(`https://api.telegram.org/bot${e.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: e.TELEGRAM_CHAT_ID, text, disable_web_page_preview: true }),
-    });
-    if (!r.ok) throw new Error('Telegram ' + r.status);
-    channels.push('telegram');
-  }
-  if (e.RESEND_API_KEY && e.PRESIDIO_REMINDER_EMAIL && e.PRESIDIO_REMINDER_FROM) {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + e.RESEND_API_KEY },
-      body: JSON.stringify({
-        from: e.PRESIDIO_REMINDER_FROM,
-        to: [e.PRESIDIO_REMINDER_EMAIL],
-        subject,
-        text,
-      }),
-    });
-    if (!r.ok) throw new Error('Email ' + r.status);
-    channels.push('email');
-  }
-  return channels;
-}
-
 /** Owner view: what is due now (all items, not only today's milestones). */
 export async function GET() {
   const user = await getMember();
@@ -69,8 +42,7 @@ export async function GET() {
   return json({
     items: dueItems(records, romeToday()),
     channels: {
-      telegram: !!(e.TELEGRAM_BOT_TOKEN && e.TELEGRAM_CHAT_ID),
-      email: !!(e.RESEND_API_KEY && e.PRESIDIO_REMINDER_EMAIL && e.PRESIDIO_REMINDER_FROM),
+      ...channels(e),
       scheduled: !!e.PRESIDIO_REMINDER_TOKEN,
     },
   });
@@ -98,9 +70,9 @@ export async function POST(req: Request) {
     if (!items.length) return json({ sent: false, reason: 'Nulla da segnalare oggi' });
     const text = reminderText(profile.name, items, new URL(req.url).origin);
     if (new URL(req.url).searchParams.get('dry') === '1') return json({ sent: false, dry: true, text });
-    const channels = await send(e, `Presidio: ${items.length} scadenze da guardare`, text);
-    if (!channels.length) return json({ sent: false, reason: 'Nessun canale configurato', text });
-    return json({ sent: true, channels, count: items.length });
+    const sent = await send(e, `Presidio: ${items.length} scadenze da guardare`, text);
+    if (!sent.length) return json({ sent: false, reason: 'Nessun canale configurato', text });
+    return json({ sent: true, channels: sent, count: items.length });
   } catch (err) {
     console.error('reminders failed', err instanceof Error ? err.message : 'unknown');
     return json({ error: 'Invio non riuscito' }, 502);

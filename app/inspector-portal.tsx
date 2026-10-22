@@ -121,7 +121,10 @@ export default function InspectorPortal({ portal }: { portal: string }) {
           <section className="panel">
             <p className="eyebrow">ACCESSO ALLA CONSULTAZIONE</p>
             <h1>Dati del controllo</h1>
-            <p className="muted">Il responsabile verifica la richiesta e abilita i documenti pertinenti.</p>
+            <p className="muted">
+              Inserisci i tuoi dati per consultare i documenti dell’attività. Dopo l’invio potrai cercarli per
+              parola chiave.
+            </p>
             <form
               onSubmit={e => {
                 e.preventDefault();
@@ -134,23 +137,25 @@ export default function InspectorPortal({ portal }: { portal: string }) {
               <div className="formgrid">
                 {(
                   [
-                    ['firstName', 'Nome'],
-                    ['lastName', 'Cognome'],
-                    ['office', 'Ente e ufficio'],
-                    ['role', 'Qualifica / ruolo'],
-                    ['purpose', 'Oggetto del controllo'],
-                    ['plate', 'Targa del veicolo (facoltativa)'],
+                    ['firstName', 'Nome', true],
+                    ['lastName', 'Cognome', true],
+                    ['plate', 'Targa del veicolo', true],
+                    ['office', 'Ente e ufficio di provenienza', true],
+                    ['role', 'Qualifica (facoltativa)', false],
+                    ['purpose', 'Oggetto del controllo (facoltativo)', false],
                   ] as const
-                ).map(([key, label]) => (
+                ).map(([key, label, required]) => (
                   <label className="field" key={key}>
                     <span>
                       {label}
-                      {key !== 'plate' ? ' *' : ''}
+                      {required ? ' *' : ''}
                     </span>
                     <input
-                      required={key !== 'plate'}
+                      required={required}
                       maxLength={key === 'plate' ? 20 : 200}
                       autoComplete="off"
+                      autoCapitalize={key === 'plate' ? 'characters' : 'words'}
+                      placeholder={key === 'plate' ? 'Es. AB123CD — scrivi “nessuna” se a piedi' : ''}
                       value={form[key]}
                       onChange={e => setForm({ ...form, [key]: e.target.value })}
                     />
@@ -180,7 +185,7 @@ export default function InspectorPortal({ portal }: { portal: string }) {
                 Ho letto le informazioni sulla sessione.
               </label>
               <button className="button primary" disabled={busy}>
-                Richiedi i documenti
+                Accedi ai documenti
               </button>
             </form>
           </section>
@@ -194,9 +199,11 @@ export default function InspectorPortal({ portal }: { portal: string }) {
           <>
             <div className="sectiontitle">
               <div>
-                <p className="eyebrow">DOCUMENTI AUTORIZZATI PER QUESTA SESSIONE</p>
+                <p className="eyebrow">DOCUMENTI DELL’ATTIVITÀ</p>
                 <h1>Quale documento cerca?</h1>
-                <p>Inserire il titolo o una parola chiave.</p>
+                <p>
+                  Scriva una parola chiave: ad esempio SCIA, agibilità, HACCP, planimetria, suolo pubblico.
+                </p>
               </div>
               <button
                 className="button secondary"
@@ -231,7 +238,7 @@ export default function InspectorPortal({ portal }: { portal: string }) {
                   minLength={2}
                   maxLength={150}
                   aria-label="Documento da cercare"
-                  placeholder="Es. planimetria, SCIA, HACCP…"
+                  placeholder="Es. SCIA, agibilità, HACCP…"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                 />

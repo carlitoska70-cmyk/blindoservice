@@ -52,6 +52,10 @@ export const documentSchema = z.object({
   catalogMatchingDismissed: z.boolean().optional(),
   priority: z.enum(['Prioritario', 'Secondario', 'Opzionale']).optional(),
   publicDescription: str(500).optional(),
+  /** Searchable by inspectors without per-visit approval when automatic exhibition is on. */
+  autoShare: z.boolean().optional(),
+  /** Employee this document belongs to (contracts, training, identity…). */
+  employeeId: str(100).optional(),
   issuer: str(200).optional(),
   holder: str(200).optional(),
   documentType: str(200).optional(),

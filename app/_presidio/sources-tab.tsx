@@ -3,6 +3,7 @@ import { Fragment } from 'react';
 import { ArrowUpRight, BookOpen, ChevronRight } from 'lucide-react';
 import { sources } from '@/lib/product';
 import CatalogueSources from '../catalogue-sources';
+import NewsPanel from './news-panel';
 import { Badge, SectionTitle } from './shared';
 
 const roadmap: [string, string, string, string][] = [
@@ -51,9 +52,16 @@ const ruleflow = [
   'Verifica motivata',
 ];
 
-export default function SourcesTab() {
+export default function SourcesTab({
+  canRefresh = false,
+  onTask = () => {},
+}: {
+  canRefresh?: boolean;
+  onTask?: (title: string, notes: string) => void;
+}) {
   return (
     <>
+      <NewsPanel canRefresh={canRefresh} onTask={onTask} />
       <CatalogueSources />
       <SectionTitle
         eyebrow="FONTI E SVILUPPO"

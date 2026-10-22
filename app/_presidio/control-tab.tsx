@@ -10,6 +10,7 @@ import {
   Mic,
   Plus,
   Printer,
+  Radio,
   Save,
   ScanLine,
   Square,
@@ -76,6 +77,8 @@ export default function ControlTab({
   onOpen,
   onTab,
   onRefresh,
+  onMonitor,
+  liveReady = false,
 }: {
   profile: Profile;
   records: Entry[];
@@ -91,6 +94,8 @@ export default function ControlTab({
   onOpen: OpenEntry;
   onTab: (tab: string) => void;
   onRefresh: () => Promise<unknown>;
+  onMonitor?: (inspectionId: string) => void;
+  liveReady?: boolean;
 }) {
   const { question, setQuestion, speaker, setSpeaker, tag, setTag } = draft;
   const { rec, pending } = recorder;
@@ -99,6 +104,7 @@ export default function ControlTab({
     .filter((x): x is Entry<EventData> => x.kind === 'event' && x.data.inspectionId === selected)
     .sort((a, b) => a.created.localeCompare(b.created));
   const suggestion = guidance(question, documents);
+  const reports = records.filter(x => x.kind === 'report' && x.data.inspectionId === selected);
   const open = current?.data.status === 'aperto';
 
   async function addEvent() {
@@ -182,6 +188,12 @@ export default function ControlTab({
                 <Download size={16} />
                 Esporta cronologia
               </button>
+              {open && onMonitor && liveReady && (
+                <button className="button primary" disabled={pending} onClick={() => onMonitor(current.id)}>
+                  <Radio size={16} />
+                  Monitora con l’IA
+                </button>
+              )}
               <a
                 className="button secondary"
                 href={'/fascicolo?id=' + encodeURIComponent(current.id)}
@@ -404,6 +416,45 @@ export default function ControlTab({
               )}
             </div>
           </section>
+          {reports.length > 0 && (
+            <section className="panel">
+              <div className="sectionhead">
+                <h2>Rapporti del controllo</h2>
+                <Badge tone="blue">{reports.length}</Badge>
+              </div>
+              {reports.map(r => (
+                <div className="archivedrow" key={r.id}>
+                  <span>
+                    <strong>Rapporto del {fmt(r.created)}</strong>
+                    <small>
+                      {r.data.possibiliViolazioni?.length || 0} possibili violazioni ·{' '}
+                      {r.data.puntiDeboli?.length || 0} punti deboli
+                    </small>
+                  </span>
+                  <span className="row">
+                    {r.data.pdfFileId && (
+                      <a
+                        className="button secondary compact"
+                        href={'/api/files?id=' + r.data.pdfFileId}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        PDF
+                      </a>
+                    )}
+                    <a
+                      className="button secondary compact"
+                      href={'/rapporto?id=' + r.id}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Apri
+                    </a>
+                  </span>
+                </div>
+              ))}
+            </section>
+          )}
           <AiPanel records={records} inspectionId={current.id} ready={aiReady} onRefresh={onRefresh} />
         </>
       )}

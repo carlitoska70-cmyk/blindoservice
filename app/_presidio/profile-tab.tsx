@@ -5,6 +5,7 @@ import { deletePasskey, passkeySupported, registerPasskey } from '@/lib/passkey-
 import { toast } from 'sonner';
 import type { Entry, Profile } from '@/lib/product';
 import { Action, Badge, download, Field, fmt, Pick, SectionTitle } from './shared';
+import LinksPanel from './links-panel';
 
 const kindLabel: Record<string, string> = { document: 'Documento', inspection: 'Controllo', task: 'Azione' };
 const entryTitle = (x: Entry) => x.data.title || x.data.authority || 'Senza titolo';
@@ -181,7 +182,9 @@ export default function ProfileTab({
   archived,
   busy,
   action,
+  onChanged = async () => {},
 }: {
+  onChanged?: () => Promise<unknown>;
   staff?: boolean;
   draft: Profile;
   onDraft: (profile: Profile) => void;
@@ -295,6 +298,7 @@ export default function ProfileTab({
           Esporta schede e cronologie
         </button>
       </div>
+      <LinksPanel onChanged={onChanged} />
       <PasskeyPanel />
       <ReminderStatus />
       <ArchivedList archived={archived} busy={busy} action={action} />

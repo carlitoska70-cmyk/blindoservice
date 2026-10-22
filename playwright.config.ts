@@ -31,6 +31,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
     locale: 'it-IT',
     timezoneId: 'Europe/Rome',
+    // Fake microphone for the live inspection tests.
+    permissions: ['microphone'],
+    launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: /mobile\.spec\.ts/ },
