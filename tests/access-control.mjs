@@ -102,8 +102,13 @@ const files = [
   'lib/text-pdf.ts',
   'app/api/live/route.ts',
   'lib/integration.ts',
-  'lib/holding.ts',
   'lib/holding-staff.ts',
+  'lib/catalogue-matching.ts',
+  'lib/inspection-catalogue.ts',
+  'lib/catalogue-index.ts',
+  'lib/version.ts',
+  'lib/holding-alert.ts',
+  'app/api/diagnostica/route.ts',
   'lib/staff.ts',
   'lib/reminders.ts',
   'app/api/collegamenti/route.ts',
@@ -224,7 +229,36 @@ try {
     noticeRead: true,
   };
   // The plate is no longer asked (minimisation): a stale client sending it gets it dropped.
-  assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 200);
+  // The owner's phone rings through Gionti Holding: the full signal at once, with an «allerta»
+  // carrying the office and the declared subject only.
+  const henv = globalThis.__presidioTest.env;
+  database.prepare("INSERT OR REPLACE INTO admin_identity(slot,owner) VALUES(1,'owner-id')").run();
+  henv.HOLDING_SEGNALE_KEY = 'kosw_allerta';
+  henv.HOLDING_URL = 'https://centrale.test/api/holding/segnale';
+  const fetchBeforeAlert = globalThis.fetch;
+  const alerts = [];
+  globalThis.fetch = async (url, init) => {
+    if (String(url) !== henv.HOLDING_URL) return fetchBeforeAlert(url, init);
+    alerts.push({ auth: init.headers.Authorization, body: JSON.parse(init.body) });
+    return Response.json({ ok: true });
+  };
+  try {
+    assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 200);
+  } finally {
+    globalThis.fetch = fetchBeforeAlert;
+    delete henv.HOLDING_SEGNALE_KEY;
+    delete henv.HOLDING_URL;
+  }
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].auth, 'Bearer kosw_allerta');
+  const allerta = alerts[0].body.dati.allerta;
+  assert.deepEqual(
+    [allerta.tipo, allerta.id, allerta.ente, allerta.motivo, allerta.link],
+    ['controllo', visit, 'Ufficio', 'Controllo test', origin + '/'],
+  );
+  assert.equal(alerts[0].body.stato, 'attenzione');
+  assert.match(alerts[0].body.testo, /^controllo in corso: Ufficio · /);
+  assert(!/Cognome|Ruolo|AB123CD/.test(JSON.stringify(alerts[0].body)));
   assert(!database.prepare('SELECT data FROM visits WHERE id=?').get(visit).data.includes('AB123CD'));
   assert.equal((await portal.POST(req('/api/portal', { action: 'identify', data: identity }))).status, 409);
   assert.equal((await portal.POST(req('/api/portal', { action: 'search', query: 'SCIA' }))).status, 403);
@@ -858,7 +892,10 @@ try {
     x = await json(await nreq({ action: 'aggiorna' }));
     assert.equal(x.status, 200);
     assert.deepEqual([x.data.nuove, x.data.scartate], [1, 1]);
-    assert.deepEqual(toolsSeen, [{ type: 'web_search' }]);
+    // The search itself is limited to the allowed sites (parseNews still checks every link).
+    assert.equal(toolsSeen[0].type, 'web_search');
+    assert(toolsSeen[0].filters.allowed_domains.includes('fipe.it'));
+    assert(toolsSeen[0].filters.allowed_domains.includes('comune.palermo.it'));
     x = await json(await nreq({ action: 'aggiorna' }));
     assert.equal(x.data.nuove, 0); // same URL is not stored twice
     const list = await json(await novita.GET());
@@ -903,6 +940,72 @@ try {
   } finally {
     globalThis.fetch = fetchBefore;
     delete env.OPENAI_API_KEY;
+  }
+  passed++;
+
+  // «Prova l'IA»: only the owner; every service of the live inspection tried; the result (not the
+  // microphone-only test) is kept for the readiness guide; errors in plain words.
+  {
+    const diag = await mod('app/api/diagnostica/route');
+    const sample = (solo = '') => {
+      const f = new FormData();
+      f.append('audio', new File(['fake-audio'], 'prova.m4a', { type: 'audio/mp4' }));
+      if (solo) f.append('solo', solo);
+      return f;
+    };
+    const dreq = form =>
+      diag.POST(
+        new Request(origin + '/api/diagnostica', { method: 'POST', headers: { Origin: origin }, body: form }),
+      );
+    const saved = () =>
+      JSON.parse(database.prepare("SELECT data FROM records WHERE kind='ai_check'").get().data);
+    owner();
+    assert.equal((await dreq(sample())).status, 503); // no OpenAI key
+    env.OPENAI_API_KEY = 'sk-test';
+    const seen = [];
+    const fetchBeforeDiag = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      const u = String(url);
+      if (u.endsWith('/v1/audio/transcriptions'))
+        return Response.json({ text: 'Buongiorno, prova di Blindo Service' });
+      if (!u.endsWith('/v1/responses')) return fetchBeforeDiag(url, init);
+      const b = JSON.parse(init.body);
+      seen.push(b);
+      const text = b.tools ? 'Trovato: {"url":"https://www.comune.palermo.it/"}' : '{"pronto":true}';
+      return Response.json({ output: [{ content: [{ type: 'output_text', text }] }] });
+    };
+    try {
+      x = await json(await dreq(sample()));
+      assert.deepEqual([x.status, x.data.ok, x.data.checks.length], [200, true, 4]);
+      assert.deepEqual(
+        seen.map(b => b.model),
+        ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4.1'],
+      );
+      assert(seen[2].tools[0].filters.allowed_domains.includes('comune.palermo.it'));
+      assert.deepEqual(x.data.avvisi, { holding: false, telegram: false, email: false });
+      assert.equal(saved().ok, true);
+      // A model the key cannot use: said in plain words.
+      globalThis.fetch = async url =>
+        String(url).endsWith('/v1/responses')
+          ? new Response('{}', { status: 404 })
+          : Response.json({ text: 'Buongiorno prova' });
+      x = await json(await dreq(sample()));
+      assert.equal(x.data.ok, false);
+      assert.equal(x.data.checks[1].esito, 'Il modello non è disponibile per questa chiave');
+      assert.equal(saved().ok, false);
+      // Microphone only: transcription alone, and the readiness check is not overwritten.
+      x = await json(await dreq(sample('microfono')));
+      assert.deepEqual([x.data.ok, x.data.checks.length], [true, 1]);
+      assert.equal(saved().ok, false);
+      globalThis.__presidioTest.user = { userId: 'owner-id', email: 'staff@example.test' };
+      assert.equal((await dreq(sample())).status, 401);
+      owner();
+    } finally {
+      globalThis.fetch = fetchBeforeDiag;
+      delete env.OPENAI_API_KEY;
+    }
+    const { VERSION } = await mod('lib/version');
+    assert.equal(VERSION, JSON.parse(readFileSync('package.json', 'utf8')).version);
   }
   passed++;
 

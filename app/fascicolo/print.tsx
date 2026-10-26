@@ -37,7 +37,7 @@ export default function FascicoloPrint({ id }: { id: string }) {
         <span>Nel dialogo di stampa scegli “Salva come PDF”.</span>
       </div>
       <header className="print-head">
-        <p className="eyebrow">PRESIDIO · FASCICOLO DEL CONTROLLO</p>
+        <p className="eyebrow">BLINDO SERVICE · FASCICOLO DEL CONTROLLO</p>
         <h1>{d.authority}</h1>
         <p>{d.scope}</p>
       </header>
@@ -130,9 +130,9 @@ export default function FascicoloPrint({ id }: { id: string }) {
         </section>
       )}
       <footer className="print-foot">
-        Documento generato il {stamp(new Date().toISOString())} dall’archivio Presidio. Raccoglie annotazioni
-        dell’utente: non è un verbale dell’autorità, una perizia né un accertamento di responsabilità. Gli
-        allegati originali si scaricano separatamente dall’archivio.
+        Documento generato il {stamp(new Date().toISOString())} dall’archivio Blindo Service. Raccoglie
+        annotazioni dell’utente: non è un verbale dell’autorità, una perizia né un accertamento di
+        responsabilità. Gli allegati originali si scaricano separatamente dall’archivio.
       </footer>
     </main>
   );

@@ -30,6 +30,7 @@ import ActionsTab from './_presidio/actions-tab';
 import StaffTab from './_presidio/staff-tab';
 import SourcesTab from './_presidio/sources-tab';
 import ProfileTab from './_presidio/profile-tab';
+import type { AiCheck } from './_presidio/ai-check-panel';
 
 // Heavy, on-demand parts (catalogue data, camera, PDF conversion) load in separate chunks.
 const CataloguePanel = lazy(() => import('./catalogue-workbench'));
@@ -69,7 +70,7 @@ function useModelContextSearch(onResult: (query: string, records: Entry[]) => vo
       context.registerTool(
         {
           name: 'search_presidio_documents',
-          title: 'Cerca documenti in Presidio',
+          title: 'Cerca documenti in Blindo Service',
           description:
             'Legge i metadati dell’archivio dell’utente e apre la ricerca. Non trasmette allegati.',
           inputSchema: {
@@ -192,6 +193,10 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
   const tasks = useMemo(() => active.filter(x => x.kind === 'task') as Entry<TaskData>[], [active]);
   const employees = useMemo(
     () => records.filter(x => x.kind === 'employee' && !x.data?.archivedAt) as Entry<EmployeeData>[],
+    [records],
+  );
+  const aiCheck = useMemo(
+    () => records.find(x => x.kind === 'ai_check')?.data as AiCheck | undefined,
     [records],
   );
 
@@ -343,12 +348,12 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
       <header className="masthead">
         {/* Full reload on purpose: next/link duplicates React under vinext dev. */}
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a className="brand" href="/" aria-label="Presidio, pagina iniziale">
+        <a className="brand" href="/" aria-label="Blindo Service, pagina iniziale">
           <span className="brandmark">
             <ShieldCheck />
           </span>
           <span>
-            PRESIDIO<small>Il fascicolo della tua impresa</small>
+            BLINDO SERVICE<small>Il fascicolo della tua impresa</small>
           </span>
         </a>
         <div className="header-right">
@@ -441,6 +446,8 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
                   inspections={inspections}
                   tasks={tasks}
                   records={records}
+                  employees={employees.length}
+                  aiCheck={aiCheck}
                   onOpen={open}
                   onTab={setTab}
                   onFilter={c => {
@@ -583,6 +590,7 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
               </TabsContent>
               <TabsContent value="profile">
                 <ProfileTab
+                  aiCheck={aiCheck}
                   onChanged={() => refresh()}
                   staff={staff}
                   draft={draftProfile}
@@ -596,7 +604,7 @@ export default function Presidio({ name, role = 'owner' }: { name: string; role?
           )}
           <footer className="footer">
             <span>
-              PRESIDIO <span>·</span> Archivio e assistenza organizzativa
+              BLINDO SERVICE <span>·</span> Archivio e assistenza organizzativa
             </span>
             <span>Valutazioni legali affidate al professionista</span>
           </footer>

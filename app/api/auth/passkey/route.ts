@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         .all<{ id: string }>();
       return json({
         challenge: await issueChallenge(db, 'register'),
-        rp: { id: rpId, name: 'Presidio' },
+        rp: { id: rpId, name: 'Blindo Service' },
         user: {
           id: b64url.encode(new TextEncoder().encode(user.userId).slice(0, 64)),
           name: user.email,

@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     if (!items.length) return json({ sent: false, reason: 'Nulla da segnalare oggi' });
     const text = reminderText(profile.name, items, new URL(req.url).origin);
     if (new URL(req.url).searchParams.get('dry') === '1') return json({ sent: false, dry: true, text });
-    const sent = await send(e, `Presidio: ${items.length} scadenze da guardare`, text);
+    const sent = await send(e, `Blindo Service: ${items.length} scadenze da guardare`, text);
     if (!sent.length) return json({ sent: false, reason: 'Nessun canale configurato', text });
     return json({ sent: true, channels: sent, count: items.length });
   } catch (err) {

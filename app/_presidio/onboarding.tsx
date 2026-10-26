@@ -3,10 +3,19 @@ import { useEffect, useState } from 'react';
 import { Check, X } from 'lucide-react';
 
 type Step = { done: boolean; title: string; text: string; tab: string; cta: string };
-const KEY = 'presidio-onboarding-hidden';
+// New key for the readiness guide (0.5.0): it shows again even if the first-run guide was dismissed.
+const KEY = 'blindo-pronto-hidden';
 
-// First-run checklist; disappears when complete or dismissed (remembered on this device).
-export default function Onboarding({ steps, onTab }: { steps: Step[]; onTab: (tab: string) => void }) {
+// Readiness checklist; disappears when complete or dismissed (remembered on this device).
+export default function Onboarding({
+  steps,
+  onTab,
+  title = 'Prepara Blindo Service in pochi passi',
+}: {
+  steps: Step[];
+  onTab: (tab: string) => void;
+  title?: string;
+}) {
   const [hidden, setHidden] = useState(true);
   useEffect(() => {
     try {
@@ -22,9 +31,9 @@ export default function Onboarding({ steps, onTab }: { steps: Step[]; onTab: (ta
       <div className="sectionhead">
         <div>
           <p className="eyebrow">
-            PER INIZIARE · {done} DI {steps.length}
+            PRONTO PER L’USO · {done} DI {steps.length}
           </p>
-          <h2>Prepara Presidio in pochi passi</h2>
+          <h2>{title}</h2>
         </div>
         <button
           className="textbutton"

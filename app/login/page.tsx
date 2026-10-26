@@ -8,7 +8,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   return (
     <main className="visitor" style={{ maxWidth: 520, margin: '60px auto', padding: 20 }}>
       <section className="panel">
-        <p className="eyebrow">BLINDOSERVICE · PRESIDIO</p>
+        <p className="eyebrow">BLINDO SERVICE</p>
         <h1 style={{ fontSize: 30 }}>Accesso del responsabile</h1>
         <p className="muted" style={{ margin: '16px 0' }}>
           Inserisci la tua email e la password generata durante la configurazione.

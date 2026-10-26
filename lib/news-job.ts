@@ -2,7 +2,7 @@
 // week from Monday 08:00 (Rome); «Cerca novità ora» runs it on demand and counts as that week's run.
 // A failed attempt is retried after RETRY_HOURS, so a broken key does not cost a call every hour.
 import { responsesJson } from './openai';
-import { NEWS_INSTRUCTIONS, NEWS_MODEL, newsKey, parseNews } from './news';
+import { NEWS_DOMAINS, NEWS_INSTRUCTIONS, NEWS_MODEL, allowedUrl, newsKey, parseNews } from './news';
 import { send, type NotifyEnv } from './notify';
 
 const DAY = 86_400_000;
@@ -81,9 +81,23 @@ export async function searchNews(env: Env, owner: string, now = new Date(), orig
       maxTokens: 5000,
       timeoutMs: 150000,
       webSearch: true,
+      // The search itself stays on the allowed sites; parseNews still checks every link.
+      allowedDomains: NEWS_DOMAINS,
     },
   );
   const { items, discarded } = parseNews(raw, new Set(known.results.map((r: { k: string }) => r.k)));
+  // Which sites the discarded items came from, so a week with nothing kept can be explained.
+  const rejected = [
+    ...new Set(
+      (Array.isArray((raw as any)?.notizie) ? (raw as any).notizie : []).flatMap((n: any) => {
+        try {
+          return allowedUrl(String(n?.url)) ? [] : [new URL(String(n.url)).hostname.slice(0, 80)];
+        } catch {
+          return ['indirizzo non valido'];
+        }
+      }),
+    ),
+  ].slice(0, 10);
   const iso = now.toISOString();
   for (const n of items)
     await db
@@ -98,7 +112,12 @@ export async function searchNews(env: Env, owner: string, now = new Date(), orig
       )
       .run();
   const important = items.filter(n => n.rilevanza === 'alta');
-  const result = { nuove: items.length, importanti: important.length, scartate: discarded };
+  const result = {
+    nuove: items.length,
+    importanti: important.length,
+    scartate: discarded,
+    siti_scartati: rejected,
+  };
   await writeState(db, owner, { lastRun: iso, lastAttempt: iso, last: result }, iso);
   if (important.length)
     await send(

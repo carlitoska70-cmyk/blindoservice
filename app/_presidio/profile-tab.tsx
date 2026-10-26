@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { Entry, Profile } from '@/lib/product';
 import { Action, Badge, download, Field, fmt, Pick, SectionTitle } from './shared';
 import LinksPanel from './links-panel';
+import AiCheckPanel, { type AiCheck } from './ai-check-panel';
 import { NOTICE_TODO, noticeProblem, portalNoticeTemplate } from '@/lib/portal-notice';
 
 const kindLabel: Record<string, string> = { document: 'Documento', inspection: 'Controllo', task: 'Azione' };
@@ -177,6 +178,7 @@ function ArchivedList({ archived, busy, action }: { archived: Entry[]; busy: boo
 }
 
 export default function ProfileTab({
+  aiCheck,
   staff = false,
   draft,
   onDraft,
@@ -185,6 +187,7 @@ export default function ProfileTab({
   action,
   onChanged = async () => {},
 }: {
+  aiCheck?: AiCheck;
   onChanged?: () => Promise<unknown>;
   staff?: boolean;
   draft: Profile;
@@ -323,6 +326,7 @@ export default function ProfileTab({
           Esporta schede e cronologie
         </button>
       </div>
+      <AiCheckPanel last={aiCheck} onChanged={onChanged} />
       <LinksPanel onChanged={onChanged} />
       <PasskeyPanel />
       <ReminderStatus />

@@ -55,7 +55,7 @@ export async function registerPasskey(label: string) {
   if (!cred) throw new Error('Registrazione annullata');
   const res = cred.response as AuthenticatorAttestationResponse;
   const publicKey = res.getPublicKey?.();
-  if (!publicKey) throw new Error('Questo browser non supporta le passkey per Presidio.');
+  if (!publicKey) throw new Error('Questo browser non supporta le passkey per Blindo Service.');
   return call({
     action: 'register',
     credential: {

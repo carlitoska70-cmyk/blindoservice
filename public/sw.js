@@ -3,8 +3,8 @@
 // - Pages: network-first; offline, the archived page or /offline.html is shown.
 // - Documents saved for offline use live in a separate cache, filled only on the
 //   owner's explicit request and cleared on logout. API data is never cached here.
-const STATIC = 'presidio-static-v2';
-const PAGES = 'presidio-pages-v2';
+const STATIC = 'presidio-static-v3';
+const PAGES = 'presidio-pages-v3';
 const DOCS = 'presidio-offline-docs';
 const OFFLINE_URL = '/offline.html';
 

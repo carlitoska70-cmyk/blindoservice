@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Presidio | Controlli e documenti',
+  title: 'Blindo Service | Controlli e documenti',
   description: 'Archivio riservato e assistenza organizzativa ai controlli amministrativi.',
   manifest: '/manifest.webmanifest',
   icons: {
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     shortcut: '/favicon.svg',
     apple: '/icons/apple-touch-icon.png',
   },
-  appleWebApp: { capable: true, title: 'Presidio', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'Blindo Service', statusBarStyle: 'default' },
 };
 export const viewport: Viewport = { themeColor: '#101f3b' };
 

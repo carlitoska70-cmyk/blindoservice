@@ -164,7 +164,7 @@ export async function POST(req: Request) {
         : { results: [] };
       const identity = JSON.parse(v.data);
       const text = [
-        'PRESIDIO — RESOCONTO DOCUMENTALE',
+        'BLINDO SERVICE — RESOCONTO DOCUMENTALE',
         `Generato: ${now}`,
         `Sessione: ${v.id}`,
         `Dati dichiarati: ${identity.firstName || ''} ${identity.lastName || ''} — ${identity.office || ''} — ${identity.role || ''}`,

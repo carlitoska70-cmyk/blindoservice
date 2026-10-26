@@ -54,6 +54,17 @@ export type HoldingMeta = {
   now: Date;
   /** lib/staff.ts staffSummary, passed in by the Worker so this module stays free of imports. */
   staffSummary?: StaffSummarize;
+  /** Sent at once when an inspector identifies at the portal: the holding alerts Carlo's phone. */
+  allerta?: HoldingAlert;
+};
+/** Office and declared subject only: names, qualifications and plates never leave Blindo. */
+export type HoldingAlert = {
+  tipo: 'controllo';
+  id: string;
+  ente: string;
+  motivo: string;
+  ora: string;
+  link: string;
 };
 export type HoldingSignal = {
   stato: 'ok' | 'attenzione' | 'errore';
@@ -247,10 +258,12 @@ export function holdingSummary(
       : null;
   const staffGaps = (staff || []).filter(e => e.missing.length || e.expiring.length);
 
-  const stato: HoldingSignal['stato'] = !input.owner || expired.length || open.length ? 'attenzione' : 'ok';
+  const stato: HoldingSignal['stato'] =
+    !input.owner || expired.length || open.length || input.allerta ? 'attenzione' : 'ok';
   const testo = clip(
     input.owner
       ? [
+          ...(input.allerta ? [`controllo in corso: ${clip(input.allerta.ente, 60)}`] : []),
           expired.length
             ? plural(expired.length, 'documento scaduto', 'documenti scaduti')
             : 'nessun documento scaduto',
@@ -317,6 +330,18 @@ export function holdingSummary(
       ultimo_il: inspections[0]?.iniziato_il || null,
     },
     portale_qr: { attivo: input.portalEnabled },
+    ...(input.allerta
+      ? {
+          allerta: {
+            tipo: input.allerta.tipo,
+            id: clip(input.allerta.id, 80),
+            ente: clip(input.allerta.ente, 120),
+            motivo: clip(input.allerta.motivo, 160),
+            ora: input.allerta.ora,
+            link: holdingTarget(input.allerta.link) ? input.allerta.link : '',
+          },
+        }
+      : {}),
     documenti_scaduti: l.documenti_scaduti,
     documenti_in_scadenza: l.documenti_in_scadenza,
     controlli_elenco: l.controlli_elenco,
@@ -452,6 +477,7 @@ export async function sendHolding(
   meta: HoldingMeta,
   fetchImpl: Fetch = fetch,
   catalogue: CatalogueTitle[] = [],
+  timeoutMs = TIMEOUT_MS,
 ) {
   const key = (env.HOLDING_SEGNALE_KEY || '').trim();
   if (!key) return { sent: false, reason: 'Chiave della holding non configurata' };
@@ -470,7 +496,7 @@ export async function sendHolding(
       method: 'POST',
       headers: { ...headers(key), 'Content-Type': 'application/json' },
       body: JSON.stringify(signal),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return { sent: false, status: res.status, reason: `La centrale risponde ${res.status}` };
     return { sent: true, status: res.status, stato: signal.stato };

@@ -1,3 +1,35 @@
+PRONTO PER L'USO — 26 OTTOBRE 2026 (branch pronto-uso, 0.5.0, sopra la 0.4.1 online c79b93d)
+
+COSA CAMBIA
+- Controllo in corso sul telefono: all'identificazione al portale Blindo manda subito il segnale
+  con «allerta» (ufficio e motivo, mai nomi) e Gionti Holding 9.0.2 fa suonare il telefono, anche
+  di sera. Prima, senza Telegram o email configurati, non arrivava nulla.
+- Prova l'IA (Azienda): trascrizione, suggerimenti, rapporto e ricerca sui siti ufficiali, provati
+  con la chiave vera, più la prova del microfono del dispositivo (5 secondi) e lo stato degli avvisi.
+  Errori in parole semplici (chiave, modello, credito, tempi).
+- Novità: la ricerca web è limitata ai siti ammessi già nella richiesta (filters.allowed_domains);
+  se una settimana non resta niente, lo stato salva da quali siti arrivavano le scartate.
+- Guida «Pronto per l'uso» in Situazione: 8 passi, dall'azienda alla prova generale con due telefoni.
+- Nome visibile Blindo Service ovunque (intestazione, app installata, pagina offline, fascicolo).
+
+RISULTATI EFFETTIVI
+- tests/access-control.mjs 31/31: allerta alla holding all'identificazione (chiave, ente, motivo,
+  link, nessun nome), Prova l'IA (solo titolare, 4 servizi, modello non disponibile spiegato, prova
+  del microfono che non sovrascrive l'ultima prova, versione allineata a package.json), filtro dei
+  siti nelle novità.
+- scripts/test-holding.mjs 14/14 (nuovo: allerta sotto il limite di 16 KB anche con 400 documenti,
+  link non HTTPS scartato).
+- Kassaro OS 9.0.2: 114/114, nuovo scripts/test-v902-allerta-blindo.mjs.
+- Prova nel browser (server locale con IA simulata): guida 0 di 8 su archivio vuoto, «Prova l'IA»
+  con 4 righe verdi e avvisi «Gionti Holding».
+
+LIMITI DELLA VERIFICA
+- La chiave OpenAI vera esiste solo online: la Prova l'IA va lanciata da Carlo dopo la
+  pubblicazione. È lei la verifica reale dei modelli.
+- L'avviso sul telefono va provato dal vero con una visita di prova al portale.
+
+------------------------------------------------------------------------
+
 PERSONALE DA GIONTI SUITE E NOVITÀ DAL CRON — 22 OTTOBRE 2026 (branch registro-personale, 0.4.1)
 Sopra la 0.4.0 (evidenze-gestionale 92a3b01) e il ramo novita-cron.
 

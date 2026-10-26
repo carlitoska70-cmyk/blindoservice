@@ -20,6 +20,14 @@ http
         return;
       }
       if (req.url === '/v1/responses') {
+        // «Prova l'IA» (app/api/diagnostica): a format check and a search on an allowed site.
+        if (body.includes('Controllo tecnico') || body.includes('pagina principale del Comune di Palermo')) {
+          const text = body.includes('Controllo tecnico')
+            ? '{"pronto":true}'
+            : 'Ecco: {"url":"https://www.comune.palermo.it/"}';
+          res.end(JSON.stringify({ output: [{ content: [{ type: 'output_text', text }] }] }));
+          return;
+        }
         if (body.includes('osservatorio')) {
           const news = {
             notizie: [

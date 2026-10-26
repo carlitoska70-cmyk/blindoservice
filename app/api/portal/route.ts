@@ -15,6 +15,7 @@ import {
 } from '@/lib/portal-server';
 import { authorizeVisit } from '@/lib/grants';
 import { send, type NotifyEnv } from '@/lib/notify';
+import { alertInspection } from '@/lib/holding-alert';
 import { matches } from '@/lib/search-terms';
 import { controlPage } from '@/lib/holding';
 export const dynamic = 'force-dynamic';
@@ -168,6 +169,13 @@ export async function POST(req: Request) {
         if (result.ok) auto = rows.results.length;
       }
       await notifyOwner(req, v.owner, data, auto);
+      // Gionti Holding rings the owner's phone (only in the owner's own copy, which has the key).
+      await alertInspection(env, {
+        visitId: v.id,
+        office: data.office,
+        purpose: data.purpose || '',
+        origin: new URL(req.url).origin,
+      });
       return response({ ok: true });
     }
     if (b.action === 'help') {

@@ -33,7 +33,7 @@ export default function Poster() {
         </p>
       )}
       <section className="poster-sheet">
-        <p className="eyebrow">{name || 'PRESIDIO'}</p>
+        <p className="eyebrow">{name || 'BLINDO SERVICE'}</p>
         <h1>Controlli e verifiche documentali</h1>
         <div className="poster-qr" dangerouslySetInnerHTML={{ __html: qrSvg(url) }} />
         <ol>

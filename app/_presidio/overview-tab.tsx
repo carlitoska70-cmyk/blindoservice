@@ -16,6 +16,8 @@ import { categories, checks, dayDiff, Entry, Profile } from '@/lib/product';
 import { dueItems, romeToday } from '@/lib/reminders';
 import { Badge, fmt, OpenEntry } from './shared';
 import Onboarding from './onboarding';
+import type { AiCheck } from './ai-check-panel';
+import { noticeProblem } from '@/lib/portal-notice';
 import { RetentionNotice } from './retention-panel';
 
 export default function OverviewTab({
@@ -27,6 +29,8 @@ export default function OverviewTab({
   inspections,
   tasks,
   records = [],
+  employees = 0,
+  aiCheck,
   onOpen,
   onTab,
   onFilter,
@@ -41,6 +45,8 @@ export default function OverviewTab({
   tasks: Entry<TaskData>[];
   /** All the owner's records: needed for the retention notice (empty for the collaborator). */
   records?: Entry[];
+  employees?: number;
+  aiCheck?: AiCheck;
   onOpen: OpenEntry;
   onTab: (tab: string) => void;
   onFilter: (category: string) => void;
@@ -73,36 +79,16 @@ export default function OverviewTab({
       {!staff && (
         <Onboarding
           onTab={onTab}
-          steps={[
-            {
-              done: !!(profile.vat && profile.address),
-              title: 'Completa i dati dell’azienda',
-              text: 'Partita IVA e sede servono ai confronti con i documenti.',
-              tab: 'profile',
-              cta: 'Apri Azienda',
-            },
-            {
-              done: documents.length >= 5,
-              title: 'Carica i primi 5 documenti',
-              text: 'SCIA, HACCP, planimetria, contratti: anche da foto o cartella.',
-              tab: 'archive',
-              cta: 'Carica',
-            },
-            {
-              done: requirements > 0,
-              title: 'Valuta il catalogo',
-              text: 'Segna quali voci si applicano alla tua attività.',
-              tab: 'catalogue',
-              cta: 'Apri catalogo',
-            },
-            {
-              done: portalEnabled,
-              title: 'Attiva il QR per i controlli',
-              text: 'Prima compila l’informativa in Azienda, poi stampa il cartello A4.',
-              tab: 'room',
-              cta: 'Accessi QR',
-            },
-          ]}
+          title="Prepara Blindo Service per il primo controllo vero"
+          steps={readiness({
+            profile,
+            documents,
+            inspections,
+            requirements,
+            portalEnabled,
+            employees,
+            aiCheck,
+          })}
         />
       )}
       {!staff && <RetentionNotice inspections={inspections} records={records} onInspection={onInspection} />}
@@ -287,4 +273,79 @@ export default function OverviewTab({
       </div>
     </>
   );
+}
+
+/** What is still missing before Blindo is ready for a real inspection, in the order it is best done. */
+function readiness(r: {
+  profile: Profile;
+  documents: Entry<DocumentData>[];
+  inspections: Entry<InspectionData>[];
+  requirements: number;
+  portalEnabled: boolean;
+  employees: number;
+  aiCheck?: AiCheck;
+}) {
+  const p = r.profile;
+  const reviewed = r.documents.filter(d => d.data.reviewed).length;
+  const alerts = r.aiCheck?.avvisi;
+  return [
+    {
+      done: !!(p.legalName && p.vat && p.address && p.city),
+      title: 'Completa i dati dell’azienda',
+      text: 'Ragione sociale, partita IVA e sede come sulla visura: servono ai confronti con i documenti.',
+      tab: 'profile',
+      cta: 'Apri Azienda',
+    },
+    {
+      done: !noticeProblem(p.portalNotice),
+      title: 'Scrivi l’informativa del portale',
+      text: 'Il testo che il controllore legge prima di entrare. Senza, il QR non si può attivare.',
+      tab: 'profile',
+      cta: 'Apri Azienda',
+    },
+    {
+      done: r.documents.length >= 5 && reviewed === r.documents.length,
+      title: 'Carica e verifica i documenti',
+      text: r.documents.length
+        ? `${reviewed} di ${r.documents.length} verificati. Apri ogni scheda, controlla date e protocollo sull’originale e salva come verificato.`
+        : 'SCIA, HACCP, planimetria, contratti: anche da foto o da una cartella intera.',
+      tab: 'archive',
+      cta: 'Apri Archivio',
+    },
+    {
+      done: r.employees > 0 || p.staff === 'No',
+      title: 'Metti i dipendenti nel registro',
+      text: 'Accetta in Azienda le proposte arrivate da Gionti Suite, poi carica contratti e attestati di ognuno.',
+      tab: 'staff',
+      cta: 'Apri Dipendenti',
+    },
+    {
+      done: r.requirements > 0,
+      title: 'Valuta il catalogo',
+      text: 'Segna quali voci si applicano alla tua attività.',
+      tab: 'catalogue',
+      cta: 'Apri catalogo',
+    },
+    {
+      done: !!r.aiCheck?.ok && !!(alerts?.holding || alerts?.telegram || alerts?.email),
+      title: 'Prova l’IA e gli avvisi',
+      text: 'Un pulsante in Azienda prova trascrizione, suggerimenti e rapporto con la tua chiave, e dice se gli avvisi ti arrivano sul telefono.',
+      tab: 'profile',
+      cta: 'Prova',
+    },
+    {
+      done: r.portalEnabled,
+      title: 'Attiva il QR e appendi il cartello',
+      text: 'Attiva gli accessi, stampa il cartello A4 e mettilo all’ingresso.',
+      tab: 'room',
+      cta: 'Accessi QR',
+    },
+    {
+      done: r.inspections.length > 0,
+      title: 'Fai una prova generale con due telefoni',
+      text: 'Un telefono fa il controllore e scansiona il QR, l’altro fa il titolare: avvia il controllo dal vivo, parla, poi «Termina controllo» e leggi il rapporto.',
+      tab: 'room',
+      cta: 'Accessi QR',
+    },
+  ];
 }

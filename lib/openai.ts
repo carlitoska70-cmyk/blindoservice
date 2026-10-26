@@ -17,6 +17,8 @@ export async function responsesJson<T = unknown>(
     timeoutMs?: number;
     /** Lets the model search the web (OpenAI web_search tool). */
     webSearch?: boolean;
+    /** With webSearch: only these sites (bare hostnames, subdomains included). */
+    allowedDomains?: string[];
   },
 ): Promise<T> {
   const r = await fetch(endpoint(ai, '/v1/responses'), {
@@ -30,7 +32,14 @@ export async function responsesJson<T = unknown>(
       input: opts.input,
       // JSON mode cannot be combined with tools: with web search the JSON is parsed from the text.
       ...(opts.webSearch
-        ? { tools: [{ type: 'web_search' }] }
+        ? {
+            tools: [
+              {
+                type: 'web_search',
+                ...(opts.allowedDomains?.length ? { filters: { allowed_domains: opts.allowedDomains } } : {}),
+              },
+            ],
+          }
         : { text: { format: { type: 'json_object' } } }),
       max_output_tokens: opts.maxTokens ?? 2000,
     }),

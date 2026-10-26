@@ -228,6 +228,28 @@ test('personale: chi ha documenti mancanti o in scadenza, solo nomi ed etichette
   assert.ok(!json.includes('NOTA_PRIVATA') && !json.includes('altro esercente'));
 });
 
+test('allerta: controllo in corso, solo ente e motivo, sotto il limite anche con elenchi pieni', () => {
+  const allerta = {
+    tipo: 'controllo',
+    id: 'visita-1',
+    ente: 'Polizia Municipale - Annona',
+    motivo: 'Controllo dehors',
+    ora: '2026-10-26T21:40:00Z',
+    link: 'https://blindo.test/',
+  };
+  const many = Array.from({ length: 400 }, (_, i) =>
+    doc(`Documento con un titolo lungo numero ${i} ${'x'.repeat(80)}`, ''),
+  );
+  const s = summary(many, { allerta });
+  assert.equal(s.stato, 'attenzione');
+  assert.match(s.testo, /^controllo in corso: Polizia Municipale - Annona · /);
+  assert.deepEqual(s.dati.allerta, allerta);
+  assert.ok(new TextEncoder().encode(JSON.stringify(s.dati)).length <= MAX_BYTES);
+  // A link that is not HTTPS (or loopback) is dropped, the alert stays.
+  assert.equal(summary([], { allerta: { ...allerta, link: 'javascript:alert(1)' } }).dati.allerta.link, '');
+  assert.equal(summary([]).dati.allerta, undefined);
+});
+
 test('invio: chiave, formato e nessun errore che fermi Blindo', async () => {
   const { sqlite, add, db } = fixture();
   sqlite.exec("INSERT INTO admin_identity VALUES(1,'carlo')");

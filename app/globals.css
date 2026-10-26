@@ -439,6 +439,47 @@ svg {
   background: #fce9e9;
   color: #9a343a;
 }
+.badge.green {
+  background: #e6f4ea;
+  color: #2b6a3d;
+}
+/* «Prova l'IA e gli avvisi»: one line per service, green or red. */
+.checklist {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.checklist li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.checklist li.ok > svg {
+  color: #2b6a3d;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.checklist li.ko > svg {
+  color: #9a343a;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.aicheck-actions {
+  flex-wrap: wrap;
+  margin: 12px 0 4px;
+}
+.aicheck-alerts {
+  line-height: 1.6;
+}
+.aicheck-alerts > svg {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: 4px;
+}
 .muted {
   color: #607089;
   font-size: 14px;

@@ -61,7 +61,7 @@ const when = (days: number) =>
 export function reminderText(business: string, items: DueItem[], appUrl: string) {
   const docs = items.filter(x => x.kind === 'document');
   const tasks = items.filter(x => x.kind === 'task');
-  const lines = [`Presidio · ${business}`, ''];
+  const lines = [`Blindo Service · ${business}`, ''];
   if (docs.length) {
     lines.push('Date da riesaminare:');
     for (const x of docs) lines.push(`• ${x.title} — ${when(x.days)} (${x.date})`);
