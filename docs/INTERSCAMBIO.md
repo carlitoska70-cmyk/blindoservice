@@ -48,7 +48,7 @@ Gionti Suite non ha bisogno di una chiave di Blindo per il personale: ogni ora B
 - Chi lascia il gestionale non viene tolto da Blindo: la fine del rapporto la segna il titolare.
 - Nel segnale orario `dati.personale` riporta attivi, completi e chi ha documenti mancanti o in scadenza (nomi ed etichette dei documenti, mai i file). Il Direttore lo legge con lo strumento `registro_blindo` di Kassaro OS.
 
-## Controllo in corso (Blindo 0.5.0, Kassaro OS 9.0.2)
+## Controllo in corso (Blindo 0.5.0, Kassaro OS 9.0.3)
 
 Quando un controllore si identifica al portale QR, Blindo non aspetta il giro orario. Manda subito alla holding il suo segnale completo con `dati.allerta = { tipo: "controllo", id, ente, motivo, ora, link }`: c'è solo l'ufficio e il motivo dichiarato, mai nomi, qualifiche o targhe. La holding avvisa il telefono di Carlo anche durante la quiete serale, una volta per visita e al massimo 10 volte al giorno. Toccando l'avviso si apre `link` (Blindo Service).
 

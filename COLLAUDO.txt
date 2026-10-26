@@ -2,7 +2,7 @@ PRONTO PER L'USO — 26 OTTOBRE 2026 (branch pronto-uso, 0.5.0, sopra la 0.4.1 o
 
 COSA CAMBIA
 - Controllo in corso sul telefono: all'identificazione al portale Blindo manda subito il segnale
-  con «allerta» (ufficio e motivo, mai nomi) e Gionti Holding 9.0.2 fa suonare il telefono, anche
+  con «allerta» (ufficio e motivo, mai nomi) e Gionti Holding 9.0.3 fa suonare il telefono, anche
   di sera. Prima, senza Telegram o email configurati, non arrivava nulla.
 - Prova l'IA (Azienda): trascrizione, suggerimenti, rapporto e ricerca sui siti ufficiali, provati
   con la chiave vera, più la prova del microfono del dispositivo (5 secondi) e lo stato degli avvisi.
@@ -19,7 +19,7 @@ RISULTATI EFFETTIVI
   siti nelle novità.
 - scripts/test-holding.mjs 14/14 (nuovo: allerta sotto il limite di 16 KB anche con 400 documenti,
   link non HTTPS scartato).
-- Kassaro OS 9.0.2: 114/114, nuovo scripts/test-v902-allerta-blindo.mjs.
+- Kassaro OS 9.0.3 (sopra la 9.0.2 dei prezzi): suite completa e scripts/test-v903-allerta-blindo.mjs.
 - Prova nel browser (server locale con IA simulata): guida 0 di 8 su archivio vuoto, «Prova l'IA»
   con 4 righe verdi e avvisi «Gionti Holding».
 
