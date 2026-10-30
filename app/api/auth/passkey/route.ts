@@ -7,6 +7,7 @@ import {
   rateLimited,
   sameOrigin,
   startSession,
+  ownerCredentials,
 } from '@/lib/admin-auth';
 import { getOperator } from '@/lib/operator';
 import { b64url, issueChallenge, registerPasskey, verifyPasskey } from '@/lib/passkey';
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
       if (await rateLimited(req, db)) return json({ error: 'Troppi tentativi. Attendi 15 minuti.' }, 429);
       if (b.action === 'login-options')
         return json({ challenge: await issueChallenge(db, 'login'), rpId, userVerification: 'required' });
-      const c = config(env.PRESIDIO_ADMIN_CREDENTIALS);
+      const c = config(await ownerCredentials(db, env.PRESIDIO_ADMIN_CREDENTIALS));
       const owner = await verifyPasskey(db, b.credential, origin, rpId);
       if (owner !== (await ownerId(db))) throw new Error('PASSKEY_OWNER');
       const token = await startSession(req, db, c, owner);

@@ -45,7 +45,7 @@ export default function LinksPanel({ onChanged }: { onChanged: () => Promise<unk
       inbox: Proposal[];
     } | null>(null),
     [busy, setBusy] = useState(false),
-    [name, setName] = useState('Gionti Suite'),
+    [name, setName] = useState(''),
     [scopes, setScopes] = useState<string[]>(['documenti:leggi', 'dipendenti:leggi', 'proposte:scrivi']),
     [token, setToken] = useState('');
   const load = () =>

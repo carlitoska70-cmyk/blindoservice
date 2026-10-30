@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const dir = mkdtempSync(join(process.cwd(), '.test-live-'));
-for (const name of ['news', 'news-job', 'openai', 'notify'])
+for (const name of ['news', 'news-job', 'openai', 'notify', 'ai-budget', 'push', 'webpush'])
   writeFileSync(
     join(dir, name + '.mjs'),
     ts

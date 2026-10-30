@@ -315,7 +315,7 @@ function readiness(r: {
     {
       done: r.employees > 0 || p.staff === 'No',
       title: 'Metti i dipendenti nel registro',
-      text: 'Accetta in Azienda le proposte arrivate da Gionti Suite, poi carica contratti e attestati di ognuno.',
+      text: 'Aggiungili in Dipendenti, o accetta in Azienda quelli proposti dal tuo gestionale, poi carica contratti e attestati.',
       tab: 'staff',
       cta: 'Apri Dipendenti',
     },
@@ -327,9 +327,9 @@ function readiness(r: {
       cta: 'Apri catalogo',
     },
     {
-      done: !!r.aiCheck?.ok && !!(alerts?.holding || alerts?.telegram || alerts?.email),
+      done: !!r.aiCheck?.ok && !!(alerts?.holding || alerts?.telegram || alerts?.email || alerts?.push),
       title: 'Prova l’IA e gli avvisi',
-      text: 'Un pulsante in Azienda prova trascrizione, suggerimenti e rapporto con la tua chiave, e dice se gli avvisi ti arrivano sul telefono.',
+      text: 'In Azienda: «Prova l’IA» (trascrizione, suggerimenti, rapporto) e «Attiva gli avvisi su questo telefono», così sai subito quando arriva un controllore.',
       tab: 'profile',
       cta: 'Prova',
     },

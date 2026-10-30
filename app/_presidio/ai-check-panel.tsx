@@ -10,7 +10,8 @@ export type AiCheck = {
   soloMicrofono?: boolean;
   ok: boolean;
   checks: Check[];
-  avvisi: { holding: boolean; telegram: boolean; email: boolean };
+  avvisi: { holding: boolean; telegram: boolean; email: boolean; push?: number };
+  spesa?: { mese: number; tetto: number | null };
 };
 const MIC_MS = 5000;
 
@@ -124,15 +125,29 @@ export default function AiCheckPanel({
           {a && (
             <p className="aicheck-alerts">
               <BellRing size={16} /> Avvisi sul telefono quando arriva un controllore:{' '}
-              {a.holding || a.telegram || a.email ? (
+              {a.holding || a.telegram || a.email || a.push ? (
                 <Badge tone="green">
-                  {[a.holding && 'Gionti Holding', a.telegram && 'Telegram', a.email && 'email']
+                  {[
+                    a.push && `${a.push} ${a.push === 1 ? 'telefono' : 'telefoni'} con Blindo`,
+                    a.holding && 'Gionti Holding',
+                    a.telegram && 'Telegram',
+                    a.email && 'email',
+                  ]
                     .filter(Boolean)
                     .join(', ')}
                 </Badge>
               ) : (
-                <Badge tone="red">nessuno: se non hai l’app aperta non lo sai</Badge>
+                <Badge tone="red">nessuno: attivali qui sotto in «Avvisi sul telefono»</Badge>
               )}
+            </p>
+          )}
+          {result.spesa && (
+            <p className="smallnote">
+              Spesa IA stimata questo mese: {result.spesa.mese.toFixed(2).replace('.', ',')} €
+              {result.spesa.tetto !== null
+                ? ` su un tetto di ${result.spesa.tetto.toFixed(2).replace('.', ',')} €`
+                : ' (nessun tetto)'}
+              .
             </p>
           )}
         </>

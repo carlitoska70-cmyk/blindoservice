@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { z } from 'zod';
 import { body, db, failure, origin, owner, rate, response } from '@/lib/portal-server';
+import { AiBudgetError, meterFor } from '@/lib/ai-budget';
 export const dynamic = 'force-dynamic';
 async function save(uid: string, kind: string, data: any) {
   const id = crypto.randomUUID(),
@@ -28,6 +29,8 @@ export async function POST(req: Request) {
       .first<any>();
     if (!session) return response({ error: 'Fascicolo non trovato' }, 404);
     await rate('ai:' + uid, 12, 3600);
+    const meter = meterFor(env);
+    await meter?.before();
     if (b.action === 'transcribe') {
       const eventId = z.string().max(100).parse(b.eventId);
       const row = await db()
@@ -71,6 +74,7 @@ export async function POST(req: Request) {
           502,
         );
       const result: any = await r.json();
+      await meter?.after({ model: 'gpt-4o-transcribe-diarize', usage: result.usage, audioBytes: obj.size });
       const segments = Array.isArray(result.segments)
         ? result.segments.map((s: any) => ({
             text: String(s.text || ''),
@@ -142,6 +146,7 @@ export async function POST(req: Request) {
       if (!r.ok)
         return response({ error: 'Riesame IA non riuscito. Il fascicolo originale resta disponibile.' }, 502);
       const result: any = await r.json();
+      await meter?.after({ model: 'gpt-4.1', usage: result.usage });
       const text = result.output
         ?.flatMap((x: any) => x.content || [])
         .filter((x: any) => x.type === 'output_text')
@@ -187,6 +192,7 @@ export async function POST(req: Request) {
     }
     return response({ error: 'Operazione non valida' }, 400);
   } catch (e) {
+    if (e instanceof AiBudgetError) return response({ error: e.message }, 402);
     if (e instanceof z.ZodError)
       return response({ error: 'Dati o risultato IA non validi. Nessuna conclusione confermata.' }, 400);
     return failure(e);

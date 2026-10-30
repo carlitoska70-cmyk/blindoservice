@@ -1,14 +1,19 @@
 import { env } from 'cloudflare:workers';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { COOKIE, readSession } from './admin-auth';
+import { COOKIE, ownerCredentials, readSession } from './admin-auth';
 
 /** Any signed-in account: the owner or the collaborator (check `role`). */
 export async function getMember() {
   const token = (await cookies()).get(COOKIE)?.value || '';
   if (!token) return null;
   try {
-    return await readSession(env.DB, env.PRESIDIO_ADMIN_CREDENTIALS, token, env.PRESIDIO_STAFF_CREDENTIALS);
+    return await readSession(
+      env.DB,
+      await ownerCredentials(env.DB, env.PRESIDIO_ADMIN_CREDENTIALS),
+      token,
+      env.PRESIDIO_STAFF_CREDENTIALS,
+    );
   } catch {
     return null;
   }

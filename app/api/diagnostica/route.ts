@@ -5,6 +5,8 @@ import { AiError, responsesJson, transcribe } from '@/lib/openai';
 import { HINT_MODEL, REPORT_MODEL, TRANSCRIBE_MODEL } from '@/lib/live';
 import { NEWS_DOMAINS, NEWS_MODEL, allowedUrl } from '@/lib/news';
 import { channels, type NotifyEnv } from '@/lib/notify';
+import { AiBudgetError, aiCap, aiSpent, meterFor } from '@/lib/ai-budget';
+import { phones } from '@/lib/push';
 export const dynamic = 'force-dynamic';
 
 // «Prova l'IA»: before a real inspection the owner checks, with the real key, every AI service the
@@ -15,6 +17,7 @@ type Check = { voce: string; modello: string; ok: boolean; ms: number; esito: st
 const MAX_AUDIO = 2 * 1024 * 1024;
 
 function explain(e: unknown) {
+  if (e instanceof AiBudgetError) return e.message;
   const m =
     e instanceof AiError ? e.message : e instanceof Error && e.name === 'TimeoutError' ? 'timeout' : '';
   const status = Number(m.match(/\d{3}$/)?.[0]);
@@ -56,7 +59,7 @@ export async function POST(req: Request) {
     )
       return response({ error: 'Audio di prova non valido' }, 400);
     const onlyMic = form.get('solo') === 'microfono';
-    const ai = { key: env.OPENAI_API_KEY, base: env.OPENAI_BASE_URL };
+    const ai = { key: env.OPENAI_API_KEY, base: env.OPENAI_BASE_URL, meter: meterFor(env) };
     const name = audio.type.includes('mp4') || audio.type.includes('m4a') ? 'prova.m4a' : 'prova.webm';
     const checks: Check[] = [
       await step('Trascrizione dell’audio', TRANSCRIBE_MODEL, async () => {
@@ -101,13 +104,16 @@ export async function POST(req: Request) {
       holding: !!(env.HOLDING_SEGNALE_KEY || '').trim(),
       telegram: on.telegram,
       email: on.email,
+      push: env.DB ? await phones(env.DB, user.userId) : 0,
     };
+    const spent = env.DB ? await aiSpent(env.DB) : { euro: 0, calls: 0 };
     const result = {
       at: new Date().toISOString(),
       soloMicrofono: onlyMic,
       ok: checks.every(c => c.ok),
       checks,
       avvisi,
+      spesa: { mese: spent.euro, tetto: aiCap(env) },
     };
     if (!onlyMic) {
       await db()

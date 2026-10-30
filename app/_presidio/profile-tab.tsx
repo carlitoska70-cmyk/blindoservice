@@ -7,6 +7,7 @@ import type { Entry, Profile } from '@/lib/product';
 import { Action, Badge, download, Field, fmt, Pick, SectionTitle } from './shared';
 import LinksPanel from './links-panel';
 import AiCheckPanel, { type AiCheck } from './ai-check-panel';
+import PhoneAlerts from './phone-alerts';
 import { NOTICE_TODO, noticeProblem, portalNoticeTemplate } from '@/lib/portal-notice';
 
 const kindLabel: Record<string, string> = { document: 'Documento', inspection: 'Controllo', task: 'Azione' };
@@ -101,43 +102,6 @@ function PasskeyPanel() {
       >
         <Fingerprint size={16} /> Aggiungi passkey su questo dispositivo
       </button>
-    </section>
-  );
-}
-
-type Channels = { telegram: boolean; email: boolean; scheduled: boolean };
-
-function ReminderStatus() {
-  const [channels, setChannels] = useState<Channels | null>(null);
-  useEffect(() => {
-    fetch('/api/reminders', { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : null))
-      .then((d: any) => setChannels(d?.channels || null))
-      .catch(() => {});
-  }, []);
-  const on = (v?: boolean) => <Badge tone={v ? 'blue' : 'gray'}>{v ? 'Attivo' : 'Non configurato'}</Badge>;
-  return (
-    <section className="panel">
-      <h2>Promemoria delle scadenze</h2>
-      <p className="muted">
-        Ogni mattina Presidio può inviarti le date da riesaminare (a 30, 7, 1 giorno e il giorno stesso) e le
-        azioni in scadenza; le date superate vengono ricordate il lunedì.
-      </p>
-      <div className="archivedrow">
-        <span>Invio programmato (GitHub Actions)</span>
-        {on(channels?.scheduled)}
-      </div>
-      <div className="archivedrow">
-        <span>Telegram</span>
-        {on(channels?.telegram)}
-      </div>
-      <div className="archivedrow">
-        <span>Email</span>
-        {on(channels?.email)}
-      </div>
-      <p className="smallnote">
-        Configurazione dal Mac: CONFIGURA_PROMEMORIA.command (vedi la guida, capitolo 0).
-      </p>
     </section>
   );
 }
@@ -327,9 +291,9 @@ export default function ProfileTab({
         </button>
       </div>
       <AiCheckPanel last={aiCheck} onChanged={onChanged} />
-      <LinksPanel onChanged={onChanged} />
+      <PhoneAlerts />
       <PasskeyPanel />
-      <ReminderStatus />
+      <LinksPanel onChanged={onChanged} />
       <ArchivedList archived={archived} busy={busy} action={action} />
     </>
   );

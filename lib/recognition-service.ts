@@ -3,10 +3,12 @@ import { getMember } from '@/lib/operator';
 import { rate } from '@/lib/portal-server';
 import { categories } from '@/lib/product';
 import { handleRecognition } from '@/lib/document-recognition';
+import { meterFor } from '@/lib/ai-budget';
 export function recognize(req: Request) {
   return handleRecognition(req, {
     authorize: getMember, // collaborator allowed: document workflows
     apiKey: () => env.OPENAI_API_KEY,
+    meter: meterFor(env),
     categories,
     rate: uid => rate('document-recognition:' + uid, 600, 3600),
     loadFile: async (id, uid) => {

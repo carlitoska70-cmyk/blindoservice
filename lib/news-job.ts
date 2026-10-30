@@ -4,12 +4,14 @@
 import { responsesJson } from './openai';
 import { NEWS_DOMAINS, NEWS_INSTRUCTIONS, NEWS_MODEL, allowedUrl, newsKey, parseNews } from './news';
 import { send, type NotifyEnv } from './notify';
+import { meterFor } from './ai-budget';
+import { notifyPhones } from './push';
 
 const DAY = 86_400_000;
 export const RETRY_HOURS = 6;
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-type Env = { DB?: D1Database; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string };
+type Env = { DB?: D1Database; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string; AI_TETTO_EURO?: string };
 export type NewsState = { lastRun?: string; lastAttempt?: string; last?: unknown };
 export const newsStateId = (owner: string) => 'novita:' + owner;
 
@@ -69,7 +71,7 @@ export async function searchNews(env: Env, owner: string, now = new Date(), orig
     .all<{ k: string }>();
   const profile = await db.prepare('SELECT data FROM profiles WHERE owner=?').bind(owner).first<any>();
   const raw = await responsesJson(
-    { key: env.OPENAI_API_KEY!, base: env.OPENAI_BASE_URL },
+    { key: env.OPENAI_API_KEY!, base: env.OPENAI_BASE_URL, meter: meterFor(env) },
     {
       model: NEWS_MODEL,
       instructions: NEWS_INSTRUCTIONS,
@@ -119,6 +121,16 @@ export async function searchNews(env: Env, owner: string, now = new Date(), orig
     siti_scartati: rejected,
   };
   await writeState(db, owner, { lastRun: iso, lastAttempt: iso, last: result }, iso);
+  if (important.length)
+    await notifyPhones(db, owner, {
+      title: important.length === 1 ? 'Una novità importante' : `${important.length} novità importanti`,
+      body: important
+        .slice(0, 2)
+        .map(n => n.titolo)
+        .join(' · '),
+      url: '/',
+      tag: 'blindo-novita',
+    });
   if (important.length)
     await send(
       env as unknown as NotifyEnv,

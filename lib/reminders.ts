@@ -49,7 +49,7 @@ export function notifiable(items: DueItem[], today: string) {
   );
 }
 
-const when = (days: number) =>
+export const when = (days: number) =>
   days < 0
     ? `scaduto da ${-days} ${days === -1 ? 'giorno' : 'giorni'}`
     : days === 0

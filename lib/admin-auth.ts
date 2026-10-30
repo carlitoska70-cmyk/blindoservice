@@ -51,6 +51,59 @@ function equal(a: string, b: string) {
 async function fingerprint(c: Config) {
   return digest(JSON.stringify(c));
 }
+/**
+ * The owner's credentials: the Worker secret in Carlo's own copy, or, in a merchant's copy made by the
+ * factory, the ones the merchant created at activation (admin_credentials). Same JSON format either way.
+ */
+export async function ownerCredentials(db: Database | undefined, secret: unknown) {
+  if (typeof secret === 'string' && secret.trim()) return secret;
+  if (!db) return undefined;
+  const r = await db
+    .prepare('SELECT email, key_hash FROM admin_credentials WHERE slot=1')
+    .first<{ email: string; key_hash: string }>();
+  return r ? JSON.stringify({ email: r.email, keyHash: r.key_hash }) : undefined;
+}
+
+/** Activation links last 7 days and work once (the factory stores only their SHA-256). */
+export const ACTIVATION_SECONDS = 7 * 24 * 3600;
+
+/**
+ * Activation of a merchant's copy: the one-time link from the factory becomes the owner's key, created
+ * here and shown once, so it never travels by email. Also the way to replace a lost key (a new link).
+ * Disabled where the credentials are a Worker secret (Carlo's own copy).
+ */
+export async function activate(
+  req: Request,
+  db: Database | undefined,
+  secret: unknown,
+  token: string,
+  email: string,
+) {
+  if (typeof secret === 'string' && secret.trim()) throw new Error('ACTIVATION_DISABLED');
+  if (!db) throw new Error('AUTH_STORAGE');
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('ACTIVATION_INVALID');
+  const mail = email.trim().toLowerCase();
+  if (mail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw new Error('ACTIVATION_EMAIL');
+  if (await rateLimited(req, db)) throw new Error('ACTIVATION_LIMIT');
+  const hash = await digest(token);
+  const row = await db
+    .prepare('SELECT token_hash FROM admin_activation WHERE token_hash=? AND used IS NULL AND expires>?')
+    .bind(hash, now())
+    .first();
+  if (!row) throw new Error('ACTIVATION_INVALID');
+  const key = randomKey();
+  const at = new Date().toISOString();
+  await db
+    .prepare(
+      'INSERT INTO admin_credentials(slot,email,key_hash,created) VALUES(1,?,?,?) ON CONFLICT(slot) DO UPDATE SET email=excluded.email,key_hash=excluded.key_hash,created=excluded.created',
+    )
+    .bind(mail, await digest(key), at)
+    .run();
+  await db.prepare('UPDATE admin_activation SET used=? WHERE token_hash=?').bind(at, hash).run();
+  // Sessions opened with a previous key stop working.
+  await db.prepare('DELETE FROM admin_sessions').run();
+  return { key, email: mail };
+}
 export function now() {
   return Math.floor(Date.now() / 1000);
 }

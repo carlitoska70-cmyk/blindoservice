@@ -1,10 +1,16 @@
 // Minimal OpenAI client for the Worker (fetch only). All user content is passed as
 // data in `input`; behaviour is defined only by `instructions`.
 
+import type { Meter } from './ai-budget';
+
 export class AiError extends Error {}
 
 /** OPENAI_BASE_URL is only for the end-to-end test server (local mock); production uses the default. */
-export type Ai = { key: string; base?: string };
+export type Ai = {
+  key: string;
+  base?: string;
+  /** Monthly spending cap (lib/ai-budget.ts). */ meter?: Meter;
+};
 const endpoint = (ai: Ai, path: string) => (ai.base || 'https://api.openai.com') + path;
 
 export async function responsesJson<T = unknown>(
@@ -21,6 +27,7 @@ export async function responsesJson<T = unknown>(
     allowedDomains?: string[];
   },
 ): Promise<T> {
+  await ai.meter?.before();
   const r = await fetch(endpoint(ai, '/v1/responses'), {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + ai.key, 'Content-Type': 'application/json' },
@@ -46,6 +53,7 @@ export async function responsesJson<T = unknown>(
   });
   if (!r.ok) throw new AiError('OpenAI ' + r.status);
   const result: any = await r.json();
+  await ai.meter?.after({ model: opts.model, usage: result.usage, webSearch: opts.webSearch });
   const text = (result.output || [])
     .flatMap((x: any) => x.content || [])
     .filter((x: any) => x.type === 'output_text')
@@ -65,6 +73,7 @@ export async function transcribe(
   name: string,
   opts: { model?: string; prompt?: string; timeoutMs?: number } = {},
 ) {
+  await ai.meter?.before();
   const form = new FormData();
   form.append('file', audio, name);
   form.append('model', opts.model ?? 'gpt-4o-transcribe');
@@ -79,5 +88,10 @@ export async function transcribe(
   });
   if (!r.ok) throw new AiError('Trascrizione ' + r.status);
   const result: any = await r.json();
+  await ai.meter?.after({
+    model: opts.model ?? 'gpt-4o-transcribe',
+    usage: result.usage,
+    audioBytes: audio.size,
+  });
   return String(result.text || '').trim();
 }

@@ -14,7 +14,7 @@ export type Profile = {
   portalNotice?: string;
 };
 export const defaultProfile: Profile = {
-  name: 'Caffè del Kassaro',
+  name: '',
   legalName: '',
   vat: '',
   address: '',

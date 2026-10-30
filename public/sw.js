@@ -1,4 +1,4 @@
-// Presidio service worker.
+// Blindo Service service worker.
 // - Static build assets: cache-first (file names are content-hashed).
 // - Pages: network-first; offline, the archived page or /offline.html is shown.
 // - Documents saved for offline use live in a separate cache, filled only on the
@@ -77,4 +77,37 @@ self.addEventListener('fetch', event => {
   if (req.mode === 'navigate') {
     event.respondWith(fetch(req).catch(() => caches.match(OFFLINE_URL)));
   }
+});
+
+// 0.6.0: notifications from Blindo (inspector at the portal, deadlines). Tapping opens the app.
+self.addEventListener('push', event => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Blindo Service', {
+      body: data.body || '',
+      tag: data.tag,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: data.url || '/' },
+      requireInteraction: data.tag === 'blindo-controllo',
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || '/', location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list)
+        if (new URL(c.url).origin === location.origin && 'focus' in c)
+          return c.navigate(url).then(w => (w || c).focus());
+      return self.clients.openWindow(url);
+    }),
+  );
 });

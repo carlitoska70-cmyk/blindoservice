@@ -108,6 +108,10 @@ const files = [
   'lib/catalogue-index.ts',
   'lib/version.ts',
   'lib/holding-alert.ts',
+  'lib/webpush.ts',
+  'lib/push.ts',
+  'lib/ai-budget.ts',
+  'app/api/push/route.ts',
   'app/api/diagnostica/route.ts',
   'lib/staff.ts',
   'lib/reminders.ts',
@@ -982,7 +986,9 @@ try {
         ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4.1'],
       );
       assert(seen[2].tools[0].filters.allowed_domains.includes('comune.palermo.it'));
-      assert.deepEqual(x.data.avvisi, { holding: false, telegram: false, email: false });
+      assert.deepEqual(x.data.avvisi, { holding: false, telegram: false, email: false, push: 0 });
+      assert.equal(x.data.spesa.tetto, null);
+      assert(x.data.spesa.mese > 0, 'la spesa dell’IA viene contata');
       assert.equal(saved().ok, true);
       // A model the key cannot use: said in plain words.
       globalThis.fetch = async url =>
@@ -1003,6 +1009,63 @@ try {
     } finally {
       globalThis.fetch = fetchBeforeDiag;
       delete env.OPENAI_API_KEY;
+    }
+    // Phones: only the owner, only the browsers' push services; an inspector at the portal rings them.
+    const pushApi = await mod('app/api/push/route');
+    const preq = body => pushApi.POST(req('/api/push', body));
+    const keyPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
+      'deriveBits',
+    ]);
+    const rawKey = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+    const toB64u = b => Buffer.from(b).toString('base64url');
+    const sub = endpoint => ({
+      endpoint,
+      keys: { p256dh: toB64u(rawKey), auth: toB64u(crypto.getRandomValues(new Uint8Array(16))) },
+    });
+    owner();
+    x = await json(await pushApi.GET(req('/api/push')));
+    assert.match(x.data.publicKey, /^[A-Za-z0-9_-]{87}$/);
+    assert.equal(x.data.phones, 0);
+    assert.equal(
+      (await preq({ action: 'subscribe', subscription: sub('https://evil.example/x') })).status,
+      400,
+    );
+    assert.equal(
+      (await preq({ action: 'subscribe', subscription: sub('http://fcm.googleapis.com/x') })).status,
+      400,
+    );
+    const phoneUrl = 'https://web.push.apple.com/telefono-di-prova';
+    x = await json(await preq({ action: 'subscribe', subscription: sub(phoneUrl) }));
+    assert.deepEqual([x.status, x.data.phones], [200, 1]);
+    globalThis.__presidioTest.user = { userId: 'owner-id', email: 'staff@example.test' };
+    assert.equal((await preq({ action: 'test' })).status, 401);
+    owner();
+    const rung = [];
+    const fetchBeforePush = globalThis.fetch;
+    let pushStatus = 201;
+    globalThis.fetch = async (url, init) => {
+      if (String(url) !== phoneUrl) return fetchBeforePush(url, init);
+      rung.push(init);
+      return new Response(null, { status: pushStatus });
+    };
+    try {
+      x = await json(await preq({ action: 'test' }));
+      assert.deepEqual([x.data.sent, x.data.phones], [1, 1]);
+      assert.equal(rung[0].headers['Content-Encoding'], 'aes128gcm');
+      // An inspector identifies at the portal: the phone rings, in Carlo's copy and in a merchant's.
+      r = await portal.POST(req('/api/portal', { action: 'start', portal: p }, ''));
+      const pushCookie = r.headers.get('set-cookie').split(';')[0];
+      assert.equal(
+        (await portal.POST(req('/api/portal', { action: 'identify', data: identity }, pushCookie))).status,
+        200,
+      );
+      assert.equal(rung.length, 2);
+      // A phone that no longer exists is dropped.
+      pushStatus = 410;
+      await preq({ action: 'test' });
+      assert.equal((await json(await pushApi.GET(req('/api/push')))).data.phones, 0);
+    } finally {
+      globalThis.fetch = fetchBeforePush;
     }
     const { VERSION } = await mod('lib/version');
     assert.equal(VERSION, JSON.parse(readFileSync('package.json', 'utf8')).version);

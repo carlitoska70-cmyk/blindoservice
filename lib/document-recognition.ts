@@ -171,6 +171,11 @@ export type RecognitionDeps = {
   rate: (owner: string) => Promise<void>;
   categories: string[];
   fetcher?: typeof fetch;
+  /** Monthly AI spending cap (lib/ai-budget.ts). */
+  meter?: {
+    before(): Promise<void>;
+    after(u: { model: string; usage?: any }): Promise<void>;
+  };
 };
 function response(data: unknown, status = 200) {
   return Response.json(data, {
@@ -248,6 +253,14 @@ export async function handleRecognition(req: Request, deps: RecognitionDeps) {
       );
     let result: Response;
     try {
+      await deps.meter?.before();
+    } catch (e) {
+      return response(
+        { error: (e as Error).message + ' L’originale resta caricato: puoi compilare la scheda a mano.' },
+        402,
+      );
+    }
+    try {
       result = await (deps.fetcher || fetch)('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
@@ -272,6 +285,7 @@ export async function handleRecognition(req: Request, deps: RecognitionDeps) {
       return response({ error: message + ' L’originale resta caricato.' }, 502);
     }
     const output: any = await result.json();
+    await deps.meter?.after({ model: output.model || 'gpt-4.1', usage: output.usage });
     if (output.status !== 'completed')
       return response(
         { error: 'Analisi incompleta. Prova un documento più breve o compila manualmente.' },

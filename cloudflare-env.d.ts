@@ -19,5 +19,11 @@ declare namespace Cloudflare {
     /** Test only: replaces the centrale address (HTTPS, or HTTP on loopback). */
     HOLDING_URL?: string;
     CF_VERSION_METADATA?: WorkerVersionMetadata;
+    /** Merchants' copies (factory): monthly AI cap in euro, suspension, sales portal report. */
+    AI_TETTO_EURO?: string;
+    BLINDO_SOSPESO?: string;
+    BLINDO_COPIA?: string;
+    PORTALE_URL?: string;
+    PORTALE_CHIAVE?: string;
   }
 }

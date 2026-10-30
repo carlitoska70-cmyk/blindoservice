@@ -11,12 +11,15 @@ import { syncStaff } from '../lib/holding-staff';
 import { staffSummary } from '../lib/staff';
 import { runRetention } from '../lib/retention';
 import { runNews } from '../lib/news-job';
+import { runReminders } from '../lib/reminders-job';
+import { reportToPortal, suspended, suspensionBlock } from '../lib/copy';
 
 const catalogue = allCatalogue.map(c => ({ id: c.id, title: c.title }));
 
 export default {
   fetch(request, env, ctx) {
-    return handler.fetch(request, env, ctx);
+    // A merchant's copy with the subscription suspended: read-only, portal and alerts still work.
+    return suspensionBlock(request, env) || handler.fetch(request, env, ctx);
   },
   scheduled(_controller, env, ctx) {
     ctx.waitUntil(
@@ -29,6 +32,10 @@ export default {
     // The staff of Gionti Suite, proposed to the owner for the employee registry.
     ctx.waitUntil(syncStaff(env, new Date()).then(r => console.log('personale', JSON.stringify(r))));
     ctx.waitUntil(runRetention(env).then(r => console.log('retention', JSON.stringify(r))));
-    ctx.waitUntil(runNews(env).then(r => console.log('novita', JSON.stringify(r))));
+    // No AI work while a merchant's subscription is suspended.
+    if (!suspended(env)) ctx.waitUntil(runNews(env).then(r => console.log('novita', JSON.stringify(r))));
+    ctx.waitUntil(runReminders(env).then(r => console.log('promemoria', JSON.stringify(r))));
+    // Merchants' copies: technical report to the sales portal (counts and version only).
+    ctx.waitUntil(reportToPortal(env, version).then(r => console.log('portale', JSON.stringify(r))));
   },
 } satisfies ExportedHandler<Cloudflare.Env>;

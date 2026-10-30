@@ -1,3 +1,32 @@
+PRONTO PER ALTRI ESERCENTI — 30 OTTOBRE 2026 (branch multi-esercente, 0.6.0, sopra la 0.5.0 online 8b274ee)
+
+COSA CAMBIA
+- Notifiche sul telefono direttamente da Blindo (Web Push cifrato, pannello «Avvisi sul telefono» in
+  Azienda): controllore al portale, scadenze ogni mattina dalle 8, novità importanti.
+- Promemoria delle scadenze dal timer del Worker: l'incarico GitHub non era mai stato configurato.
+- Attivazione con link una tantum: la chiave nasce nella copia e si vede una volta sola.
+- Tetto mensile dell'IA per copia (AI_TETTO_EURO) su tutte le chiamate. Copia di Carlo senza tetto.
+- Sospensione (BLINDO_SOSPESO): sola lettura; portale QR, accesso e avvisi restano.
+- Rapporto tecnico orario al portale di vendita: solo numeri e versione.
+- Fabbrica delle copie (scripts/fabbrica.mjs, docs/FABBRICA.md). Copia vergine: niente Kassaro.
+
+RISULTATI EFFETTIVI
+- tests/access-control.mjs 31/31 (nuovi: telefoni solo del titolare, solo servizi push dei browser,
+  squillo all'identificazione, telefono sparito tolto).
+- scripts/test-vendita.mjs 7/7: notifica decifrata come fa un browser, firma VAPID verificata, tetto
+  IA, sospensione, rapporto senza contenuti, configurazione delle copie senza holding.
+- scripts/test-admin-auth.mjs 15/15 (nuovo: attivazione, link riusato o scaduto, chiave sostituita).
+- End-to-end Playwright 10/10. Typecheck, lint (0 errori) e formato a posto.
+- Prova nel browser su una copia vergine locale: attivazione, link riusato rifiutato, accesso, guida
+  0 di 8, nessuna scritta Kassaro, Gionti o Presidio.
+- Fabbrica in modalità --prova e wrangler deploy --dry-run sulla configurazione generata.
+
+LIMITI DELLA VERIFICA
+- Mai provati dal vero: una notifica su un iPhone reale, una copia creata su Cloudflare, il tetto
+  con l'IA vera. Le stime di spesa vanno confrontate con la dashboard di OpenAI.
+
+------------------------------------------------------------------------
+
 PRONTO PER L'USO — 26 OTTOBRE 2026 (branch pronto-uso, 0.5.0, sopra la 0.4.1 online c79b93d)
 
 COSA CAMBIA

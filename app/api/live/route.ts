@@ -16,10 +16,11 @@ import {
 } from '@/lib/live';
 import { textPdf } from '@/lib/text-pdf';
 import { defaultProfile } from '@/lib/product';
+import { AiBudgetError, meterFor } from '@/lib/ai-budget';
 export const dynamic = 'force-dynamic';
 
 const MAX_SEGMENT = 4 * 1024 * 1024;
-const ai = () => ({ key: env.OPENAI_API_KEY!, base: env.OPENAI_BASE_URL });
+const ai = () => ({ key: env.OPENAI_API_KEY!, base: env.OPENAI_BASE_URL, meter: meterFor(env) });
 
 async function save(uid: string, kind: string, data: unknown) {
   const id = crypto.randomUUID(),
@@ -299,6 +300,8 @@ export async function POST(req: Request) {
     return response({ error: 'Formato non valido' }, 415);
   } catch (e) {
     if (e instanceof z.ZodError) return response({ error: 'Dati non validi' }, 400);
+    // Over the monthly AI cap: the recording goes on and is archived, only transcription and hints stop.
+    if (e instanceof AiBudgetError) return response({ error: e.message, budget: true }, 402);
     console.error('live failed', e instanceof Error ? e.message : 'unknown');
     return failure(e);
   }

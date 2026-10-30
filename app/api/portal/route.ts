@@ -16,6 +16,7 @@ import {
 import { authorizeVisit } from '@/lib/grants';
 import { send, type NotifyEnv } from '@/lib/notify';
 import { alertInspection } from '@/lib/holding-alert';
+import { notifyPhones } from '@/lib/push';
 import { matches } from '@/lib/search-terms';
 import { controlPage } from '@/lib/holding';
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,14 @@ async function notifyOwner(req: Request, owner: string, d: any, auto: number) {
     ]
       .filter(Boolean)
       .join('\n');
+    // The owner's phones first: the inspector is at the door.
+    if (env.DB)
+      await notifyPhones(env.DB, owner, {
+        title: `🚨 Controllo in corso: ${String(d.office).slice(0, 60)}`,
+        body: `${d.purpose ? `Motivo dichiarato: ${String(d.purpose).slice(0, 140)}. ` : ''}${auto ? `${auto} documenti già consultabili.` : 'Il controllore aspetta la tua autorizzazione.'} Apri Blindo e premi «Monitora controllo in corso».`,
+        url: '/',
+        tag: 'blindo-controllo',
+      });
     await send(env as unknown as NotifyEnv, `Controllo in corso: ${d.office}`, text);
   } catch (e) {
     console.error('inspection notification failed', e instanceof Error ? e.message : 'unknown');

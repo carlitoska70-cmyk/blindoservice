@@ -11,6 +11,9 @@ import {
   readSession,
   login,
   logout,
+  activate,
+  ownerCredentials,
+  ACTIVATION_SECONDS,
 } from '../lib/admin-auth.ts';
 
 const schema = readFileSync(new URL('./admin-login-schema.sql', import.meta.url), 'utf8');
@@ -272,4 +275,47 @@ test('collaborator: separate credential, staff role, rotation and collision', as
     clash,
   );
   assert.match(c.headers.get('location'), /error=credentials/);
+});
+
+test('activation of a merchant copy: one-time link, key created in the copy, old key replaced', async () => {
+  const db = database();
+  const insertLink = async (expires = Math.floor(Date.now() / 1000) + ACTIVATION_SECONDS) => {
+    const t = randomKey();
+    db.sqlite.prepare('INSERT INTO admin_activation VALUES(?,?,NULL)').run(await digest(t), expires);
+    return t;
+  };
+  // No credentials yet: nobody can sign in.
+  assert.equal(await ownerCredentials(db, undefined), undefined);
+  const req = () => request({ headers: { 'content-type': 'application/json' } });
+  const t = await insertLink();
+  await assert.rejects(activate(req(), db, undefined, randomKey(), 'a@b.it'), /ACTIVATION_INVALID/);
+  await assert.rejects(activate(req(), db, undefined, 'corto', 'a@b.it'), /ACTIVATION_INVALID/);
+  await assert.rejects(activate(req(), db, undefined, t, 'non-una-mail'), /ACTIVATION_EMAIL/);
+  const first = await activate(req(), db, undefined, t, ' Titolare@Bar.it ');
+  assert.equal(first.email, 'titolare@bar.it');
+  assert.match(first.key, /^[A-Za-z0-9_-]{43}$/);
+  // Only the hash is stored, and the login works with the new key.
+  const stored = db.sqlite.prepare('SELECT * FROM admin_credentials').get();
+  assert.equal(stored.key_hash, await digest(first.key));
+  assert.ok(!JSON.stringify(stored).includes(first.key));
+  const creds = await ownerCredentials(db, undefined);
+  const form = key => new URLSearchParams({ email: 'titolare@bar.it', password: key });
+  const r = await login(request({ body: form(first.key) }), db, creds);
+  assert.equal(r.headers.get('location'), '/');
+  const session = token(r);
+  assert.equal((await readSession(db, creds, session)).role, 'owner');
+  // The same link cannot be used twice; an expired one does not work.
+  await assert.rejects(activate(req(), db, undefined, t, 'x@y.it'), /ACTIVATION_INVALID/);
+  const old = await insertLink(Math.floor(Date.now() / 1000) - 5);
+  await assert.rejects(activate(req(), db, undefined, old, 'x@y.it'), /ACTIVATION_INVALID/);
+  // A new link replaces a lost key: the old key and its sessions stop working.
+  const second = await activate(req(), db, undefined, await insertLink(), 'titolare@bar.it');
+  const creds2 = await ownerCredentials(db, undefined);
+  assert.equal(await readSession(db, creds2, session), null);
+  const again = await login(request({ body: form(first.key) }), db, creds2);
+  assert.match(again.headers.get('location'), /error=credentials/);
+  assert.equal((await login(request({ body: form(second.key) }), db, creds2)).headers.get('location'), '/');
+  // Carlo's copy: the secret wins and activation is off.
+  assert.equal(await ownerCredentials(db, raw), raw);
+  await assert.rejects(activate(req(), db, raw, await insertLink(), 'x@y.it'), /ACTIVATION_DISABLED/);
 });
